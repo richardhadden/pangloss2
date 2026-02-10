@@ -110,24 +110,30 @@ APIS-style relation-as-node
 PropertyClasses
 ---------------
 
-### list[T]
+### `list[T]`
 Literal list of type T
 
-### AnnotatedLiteral[Value]
+### `AnnotatedLiteral[Value]`
 Provides extra literal fields that are bound to the main value
 
-### typing.TypedDict
+### `typing.TypedDict`
 Flattened and stored as keys
 
 
 Special Classes
 ---------------
 
-### ViaEdge[Target, EdgeModel]
+### `ViaEdge[Target, EdgeModel]`
 Adds an edge of type EdgeModel to a relation
 
-### Traits
+### `Traits`
 Mixin classes adding extra fields and labels
 
-### Fulfils[T: Trait]
+### `Fulfils[T: Trait]`
 Optionally include fields of a trait, that are fulfilled by being provided (thus adding label)
+
+### DBField[...]
+Labels a field as database-only (not returned by API), createable from existing fields on write
+
+### APIField[...]
+Labels a field as API-only (not in DB), createble from existing fields on read
