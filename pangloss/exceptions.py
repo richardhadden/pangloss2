@@ -1,0 +1,2 @@
+class PanglossInitialisationError(Exception):
+    pass
