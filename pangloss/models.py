@@ -82,8 +82,7 @@ class SubDocumentCreateBase(_BaseObject):
 class SubDocument(_BaseObject):
     Create: ClassVar[DocumentCreateBase]
 
-    @property
-    def label(self):
+    def generate_label(self):
         pass
 
     @classmethod
