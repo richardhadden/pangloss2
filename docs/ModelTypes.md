@@ -4,29 +4,36 @@ Model Types
 Node Types
 ----------
 
-### Document
+### `Document`
 Describes a top-level viewable document (maps to node)
 
-### SubDocument
+Action types:
+[] Create
+- View
+- EditView
+- EditSet
+- ReferenceView
+
+### `SubDocument`
 Describes a part of a viewable document (maps to node)
 
-### Entity
+### `Entity`
 Describes an Entity, referenceable by a document (maps to node)
 
-### ReifiedRelation
+### `ReifiedRelation`
 Describes a relation to an Entity via an intermediate node
 
-### ReifiedRelationDocument
+### `ReifiedRelationDocument`
 Same as ReifiedRelation, but with label and treated as SubDocument
 
-### Embedded
+### `Embedded`
 Same as SubDocument, but treated as intrinsic part of 
 
-### SemanticSpace
+### `SemanticSpace`
 
-### Conjunction
+### `Conjunction`
 
-### Relation
+### `Relation`
 APIS-style relation-as-node
 
 
@@ -40,6 +47,8 @@ Literal list of type T
 Provides extra literal fields that are bound to the main value
 
 ### typing.TypedDict
+Flattened and stored as keys
+
 
 Special Classes
 ---------------
