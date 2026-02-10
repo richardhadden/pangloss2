@@ -8,14 +8,23 @@ Node Types
 Describes a top-level viewable document (maps to node)
 
 Action types:
-[] Create
-- View
-- EditView
-- EditSet
-- ReferenceView
+- [] Create
+- [] EditSet
+
+- [] View
+- [] EditView
+- [] ReferenceView
 
 ### `SubDocument`
 Describes a part of a viewable document (maps to node)
+
+Action types:
+- [] Create
+- [] EditSet
+
+- [] EditView
+- [] View
+- [] ReferenceView
 
 ### `Entity`
 Describes an Entity, referenceable by a document (maps to node)
