@@ -12,12 +12,15 @@ from pangloss.exceptions import PanglossMetaError
 
 class META_RULES(Enum):
     DO_NOT_INHERIT = 0
+    """Do not inherit this value; instead reset to default when inherited"""
     ACCUMULATE = 1
+    """Accumulate values from list, set or dict through inheritance"""
     REPLACE_IF_NOT_DEFAULT = 2
+    """Follow normal inheritance procedure"""
 
 
 def get_field_rule(field: FieldInfo) -> META_RULES:
-    """Extracts the correct META_RULE from a field definition"""
+    """Extracts the correct `META_RULE` from a field definition"""
     if field.metadata:
         return field.metadata[0]
     else:
@@ -28,27 +31,29 @@ class InheritValueMetaclass(type):
     """Metaclass for INHERIT_VALUE, adding a property to the class that
     returns a singleton instance of itself, so that this works correctly:
 
-    number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
+    `number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT`
     """
 
     @property
     def AS_DEFAULT(cls):
+        """Use `INHERIT_VALUE` as default value"""
         if not hasattr(cls, "_singleton_instance"):
             cls._singleton_instance = cls()
         return cls._singleton_instance
 
 
 class INHERIT_VALUE(metaclass=InheritValueMetaclass):
-    """Type marker for field that does not need to be declared on a _meta object,
-    but must be inherited from a parent's _meta.
+    """Type marker for field that does not need to be declared on a `_meta` object,
+    but must be inherited from a parent's `_meta`.
 
-    INHERIT_VALUE.AS_DEFAULT must be used as the default value.
+    `INHERIT_VALUE.AS_DEFAULT` must be used as the default value.
 
     Usage:
 
+    ```
     class SomeMeta(BaseMeta):
         number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
-
+    ```
     """
 
     pass
@@ -91,6 +96,21 @@ def _generate_initialisation_error_message(
 
 
 class BaseMeta(BaseModel):
+    """
+    Class to be inherited for defining your own `_meta` objects.
+
+    Usage:
+
+    ```
+    class SomeMeta(BaseMeta):
+        abstract: Annotated[bool, META_RULES.DO_NOT_INHERIT] = False
+        things: Annotated[list[str], META_RULES.ACCUMULATE] = Field(
+            default_factory=list
+        )
+        number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
+    ```
+    """
+
     model_config = {"arbitrary_types_allowed": True}
 
     _initialised_directly: set[str] = PrivateAttr(default_factory=set)
@@ -181,6 +201,33 @@ class BaseMeta(BaseModel):
 
 
 class WithMeta[T: BaseMeta](BaseModel):
+    """
+    Mixin that creates a `_meta` `ClassVar` attribute, of type `BaseMeta`, on a Pydantic `BaseModel` type.
+
+    All subclasses may or may not define their own `_meta` attribute. This class ensures that
+    `_meta` attributes on subclasses inherit the correct values from their parent class's `_meta`,
+    following the rules defined in your `BaseMeta` class.
+
+    Usage:
+
+    ```
+    class MyMeta(BaseMeta):
+        abstract: Annotated[bool, META_RULES.DO_NOT_INHERIT] = False
+        things: Annotated[list[int], META_RULES.ACCUMULATE] = Field(default_factory=list)
+        number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
+
+    class Entity(BaseModel, WithMeta[MyMeta]):
+        _meta = MyMeta(abstract=True, things=[1, 2, 3], number=1)
+
+    class Thing(Entity):
+        _meta = MyMeta(number=2, things=[4])
+    ```
+
+    `Thing._meta.abtract == False` (not inherited)
+    `Thing._meta.number == 2` (overridden)
+    `Thing._meta.things == [1, 2, 3, 4]` (accumulated)
+    """
+
     _meta: ClassVar[T]  # type: ignore
     _meta_class: ClassVar[type[T]]  # type: ignore
 

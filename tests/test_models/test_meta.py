@@ -245,7 +245,9 @@ def test_meta_on_class_is_right_type():
 def test_meta_on_class():
     class SomeMeta(BaseMeta):
         abstract: Annotated[bool, META_RULES.DO_NOT_INHERIT] = False
-        things: Annotated[list, META_RULES.ACCUMULATE] = Field(default_factory=list)
+        things: Annotated[list[str], META_RULES.ACCUMULATE] = Field(
+            default_factory=list
+        )
         number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
 
     class Root(BaseModel):
