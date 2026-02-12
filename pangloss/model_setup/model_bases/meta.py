@@ -1,7 +1,6 @@
 import inspect
 from collections.abc import Iterable
 from enum import Enum
-from functools import reduce
 from typing import Any, ClassVar, cast
 
 from pydantic import BaseModel, PrivateAttr, ValidationError
@@ -11,7 +10,14 @@ from pydantic_core import PydanticUndefinedType
 from pangloss.exceptions import PanglossMetaError
 
 
+class META_RULES(Enum):
+    DO_NOT_INHERIT = 0
+    ACCUMULATE = 1
+    REPLACE_IF_NOT_DEFAULT = 2
+
+
 def get_field_rule(field: FieldInfo) -> META_RULES:
+    """Extracts the correct META_RULE from a field definition"""
     if field.metadata:
         return field.metadata[0]
     else:
@@ -19,6 +25,12 @@ def get_field_rule(field: FieldInfo) -> META_RULES:
 
 
 class InheritValueMetaclass(type):
+    """Metaclass for INHERIT_VALUE, adding a property to the class that
+    returns a singleton instance of itself, so that this works correctly:
+
+    number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
+    """
+
     @property
     def AS_DEFAULT(cls):
         if not hasattr(cls, "_singleton_instance"):
@@ -27,19 +39,37 @@ class InheritValueMetaclass(type):
 
 
 class INHERIT_VALUE(metaclass=InheritValueMetaclass):
+    """Type marker for field that does not need to be declared on a _meta object,
+    but must be inherited from a parent's _meta.
+
+    INHERIT_VALUE.AS_DEFAULT must be used as the default value.
+
+    Usage:
+
+    class SomeMeta(BaseMeta):
+        number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
+
+    """
+
     pass
 
 
-def merge_fields[T: list | set | dict](field_type: type[T], left: T, right: T) -> T:
-    if field_type is dict:
+def _merge_fields[T: list | set | dict](field_type: type[T], left: T, right: T) -> T:
+    """Utility to merge lists, sets, dicts correctly"""
+    if right is None:
+        return left
+
+    elif field_type is dict:
         return field_type(**left, **right)
     else:
         return field_type([*left, *right])
 
 
-def generate_error_message(
+def _generate_initialisation_error_message(
     cls_name: str, do_not_inherits_invalid: list[str], accumulations_invalid: list[str]
 ) -> str:
+    """Utility to generate nice initialisation error message"""
+
     error_msg = f"Error with <{cls_name}>: "
 
     if do_not_inherits_invalid:
@@ -98,19 +128,18 @@ class BaseMeta(BaseModel):
 
         if do_not_inherits_invalid or accumulations_invalid:
             raise PanglossMetaError(
-                generate_error_message(
+                _generate_initialisation_error_message(
                     cls.__name__, do_not_inherits_invalid, accumulations_invalid
                 )
             )
 
     def __init__(self, *args, **kwargs):
-
         super().__init__(*args, **kwargs)
+
+        # Keep track of whether keys have been explicitly provided in instantiation
         self._initialised_directly.update(kwargs.keys())
 
     def __and__[T: BaseMeta](self: T, child: T | None) -> T:
-
-        # If there is nothing to be added, return self
 
         # Check self and child have same time, for sanity
         if child and type(self) is not type(child):
@@ -127,11 +156,13 @@ class BaseMeta(BaseModel):
         for field_name, model_field in self.__class__.model_fields.items():
             field_rule: META_RULES = get_field_rule(model_field)
 
+            # If field should be accumulated, use the _merge_field function
+            # to do it
             if field_rule == META_RULES.ACCUMULATE:
-                merged_dict[field_name] = merge_fields(
+                merged_dict[field_name] = _merge_fields(
                     field_type=type(model_field.get_default(call_default_factory=True)),
                     left=left_dict[field_name],
-                    right=right_dict[field_name],
+                    right=right_dict.get(field_name, None),
                 )
 
             # A field defined explicitly on a meta object should be used
@@ -145,13 +176,8 @@ class BaseMeta(BaseModel):
             ) and field_rule != META_RULES.DO_NOT_INHERIT:
                 merged_dict[field_name] = left_dict[field_name]
 
+        # Pile everything into a new meta object and return
         return self.__class__(**merged_dict)
-
-
-class META_RULES(Enum):
-    DO_NOT_INHERIT = 0
-    ACCUMULATE = 1
-    REPLACE_IF_NOT_DEFAULT = 2
 
 
 class WithMeta[T: BaseMeta](BaseModel):
@@ -160,34 +186,48 @@ class WithMeta[T: BaseMeta](BaseModel):
 
     @classmethod
     def __pydantic_init_subclass__(cls, **_) -> None:
-        print("---", cls.__name__)
 
+        # Is the (sub)class being initialised *this* class?
         initialising_class_is_this = (
             cls.__pydantic_generic_metadata__["origin"] is __class__
         )
 
+        # If initialising *this* class, set the type of BaseMeta for the object;
+        # Note that actualising a the generic WithMeta[T] with any actual BaseMeta class
+        # means that these are in fact two classes, and there is no overriding
         if initialising_class_is_this:
             __class__._meta_class = cls.__pydantic_generic_metadata__["args"][0]
 
         if initialising_class_is_this:
             return
 
-        has_own_meta = "_meta" in cls.__dict__
+        # Does the class being initialised have its own "_meta" object (rather than inheriting)?
+        has_own_meta: bool = "_meta" in cls.__dict__
 
+        # Extract the meta_class that we are going to use
+        meta_class: type[BaseMeta] = cast(type[BaseMeta], cls._meta_class)
+
+        if has_own_meta and not isinstance(cls.__dict__["_meta"], meta_class):
+            raise PanglossMetaError(
+                f"<{cls.__name__}>: _meta attribute must be of type {meta_class.__name__}, not {type(cls.__dict__['_meta']).__name__}"
+            )
+
+        # Get a list of parent classes for cls
         parent_classes: list[type] = []
         for c in cls.mro():
             if c is not cls:
                 parent_classes.append(c)
 
+        # Get the meta classes for parent classes
         parents_metas = []
         for parent in parent_classes:
-            if (parent_meta := getattr(parent, "_meta", None)) and isinstance(
+            if (parent_meta := parent.__dict__.get("_meta"), None) and isinstance(
                 parent_meta, BaseMeta
             ):
                 parents_metas.append(parent_meta)
 
-        meta_class: type[BaseMeta] = cast(type[BaseMeta], cls._meta_class)
-
+        # If no _meta is found anywhere, see if it can be instantiated just using
+        # defaults, otherwise raise an error
         if not has_own_meta and not parents_metas:
             try:
                 cls._meta = meta_class()  # type: ignore
@@ -198,14 +238,24 @@ class WithMeta[T: BaseMeta](BaseModel):
                     "be declared somewhere in the model hierarchy, or have all-default arguments"
                 )
 
-        elif not has_own_meta:
-            cls._meta = reduce(lambda x, y: x & y, [*parents_metas, None])  # type: ignore
+        # If no _meta on cls, but parent meta, merge last parent meta with None to reset
+        # non-heritable defaults
+        elif not has_own_meta and parents_metas:
+            cls._meta = (
+                parents_metas[-1] & None
+            )  # reduce(lambda x, y: x & y, [*parents_metas, None])  # type: ignore
 
+        # If cls has its own meta, merge the fields from the parent meta that
+        # are not on this cls's meta
+        elif has_own_meta and parents_metas:
+            cls._meta = parents_metas[-1] & cls.__dict__["_meta"]
+
+        # We're good because it does!
         elif has_own_meta:
-            cls._meta = reduce(
-                lambda x, y: x & y, [*parents_metas, cls.__dict__["_meta"]]
-            )
+            pass
 
+        # Check there are no INHERIT_VALUE fields that somewhere in the chain
+        # have not actually been able to inherit a value
         for k, v in cls._meta.model_dump().items():
             if isinstance(v, INHERIT_VALUE):
                 raise PanglossMetaError(

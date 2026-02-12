@@ -213,6 +213,35 @@ def test_meta_on_class_raises_error_if_inherit_field_is_not_declared_somewhere()
             name: str
 
 
+def test_meta_on_class_is_right_type():
+    with raises(PanglossMetaError):
+
+        class SomeMeta(BaseMeta):
+            abstract: Annotated[bool, META_RULES.DO_NOT_INHERIT] = False
+            things: Annotated[list, META_RULES.ACCUMULATE] = Field(default_factory=list)
+            number: int | INHERIT_VALUE = INHERIT_VALUE.AS_DEFAULT
+
+        class Bullshit(BaseMeta):
+            pass
+
+        class Root(BaseModel):
+            pass
+
+        class ArbitraryMixin:
+            pass
+
+        class Entity(Root, ArbitraryMixin, WithMeta[SomeMeta]):
+            _meta = SomeMeta(
+                abstract=True,
+                things=["one"],
+                number=1,
+            )
+
+        class Animal(Entity):
+            _meta = Bullshit()
+            name: str
+
+
 def test_meta_on_class():
     class SomeMeta(BaseMeta):
         abstract: Annotated[bool, META_RULES.DO_NOT_INHERIT] = False
@@ -226,7 +255,11 @@ def test_meta_on_class():
         pass
 
     class Entity(Root, ArbitraryMixin, WithMeta[SomeMeta]):
-        _meta = SomeMeta(abstract=True, things=["one"], number=1)
+        _meta = SomeMeta(
+            abstract=True,
+            things=["one"],
+            number=1,
+        )
 
     class Animal(Entity):
         _meta = SomeMeta()
@@ -247,3 +280,9 @@ def test_meta_on_class():
     assert AnimalTwo._meta.things == ["one", "two"]
     assert AnimalTwo._meta.abstract is True
     assert AnimalTwo._meta.number == 1
+
+    class Cat(Animal):
+        pass
+
+    assert Cat._meta.abstract is False
+    assert Cat._meta.things == ["one"]
