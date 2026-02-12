@@ -1,7 +1,7 @@
 from typing import Annotated, ClassVar
 
 from pydantic import ConfigDict, Field
-from pydantic_meta_kit import BaseMeta, MetaRules
+from pydantic_meta_kit import BaseMeta, MetaRules, WithMeta
 
 from pangloss.model_setup.model_bases.base_object import _BaseObject
 
@@ -21,7 +21,7 @@ class DocumentCreateBase(_BaseObject):
     pass
 
 
-class Document(_BaseObject):
+class Document(_BaseObject, WithMeta[DocumentMeta]):
     model_config = ConfigDict(validate_assignment=True)
 
     _meta: ClassVar[DocumentMeta]
