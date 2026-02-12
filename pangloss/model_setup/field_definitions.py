@@ -1,27 +1,7 @@
 from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import field as dataclass_field
 
-from pangloss.models import (
-    Document,
-    Entity,
-    HeritableTrait,
-    NonHeritableTrait,
-    ReifiedRelation,
-    ReifiedRelationDocument,
-    SubDocument,
-)
-
-type BaseTypes = type[str | int | float | date | datetime]
-type ModelTypes = type[
-    Document
-    | SubDocument
-    | Entity
-    | HeritableTrait
-    | NonHeritableTrait
-    | ReifiedRelation
-    | ReifiedRelationDocument
-]
-type CompositeTypes = type[list[BaseTypes | ModelTypes]]
+from pangloss.types import BaseTypes, CompositeTypes, ModelTypes
 
 
 @dataclass(frozen=True)
@@ -33,3 +13,8 @@ class FieldDefinition:
 @dataclass(frozen=True)
 class LiteralFieldDefinition(FieldDefinition):
     pass
+
+
+@dataclass
+class ModelFields:
+    fields: set[FieldDefinition] = dataclass_field(default_factory=set)

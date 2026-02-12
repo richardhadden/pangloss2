@@ -13,7 +13,7 @@ Inbound types:
 - Update
 
 Outbound types:
-- UpateView
+- UpdateView
     - ID, Label, created/modified,
 - View
     - ID, Label, created/modified
