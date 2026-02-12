@@ -1,20 +1,18 @@
-from dataclasses import dataclass, field
 from typing import Annotated, ClassVar
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
+from pydantic_meta_kit import BaseMeta, MetaRules
 
 from pangloss.model_setup.model_bases.base_object import _BaseObject
-from pangloss.model_setup.model_bases.meta import META_RULES, BaseMeta
 
 
-@dataclass(frozen=True, kw_only=True)
 class DocumentMeta(BaseMeta):
-    abstract: Annotated[bool, META_RULES.DO_NOT_INHERIT] = False
+    abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
     create_with_id: bool = False
-    view_extra_fields: Annotated[list[str], META_RULES.ACCUMULATE] = field(
+    view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
         default_factory=list
     )
-    reference_view_extra_fields: Annotated[list[str], META_RULES.ACCUMULATE] = field(
+    reference_view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
         default_factory=list
     )
 

@@ -108,7 +108,4 @@ class ModelManager:
 
     @classmethod
     def initialise_models(cls):
-        from pangloss.model_setup.initialise_meta import initialise_document_meta
-
-        for model_name, model in cls._documents.items():
-            initialise_document_meta(model)
+        pass

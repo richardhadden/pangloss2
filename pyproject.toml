@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.12.5",
+    "pydantic-meta-kit",
 ]
 
 [build-system]
@@ -19,3 +20,11 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=9.0.2",
 ]
+
+[tool.uv.workspace]
+members = [
+    "pangloss/pydantic_meta_kit",
+]
+
+[tool.uv.sources]
+pydantic-meta-kit = { git = "https://github.com/richardhadden/pydantic-meta-kit.git" }
