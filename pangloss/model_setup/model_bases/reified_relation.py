@@ -1,13 +1,13 @@
 from pydantic import BaseModel
 
-from pangloss.model_setup.model_bases.base_object import _BaseObject
+from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 
 
 class ReifiedRelationMeta(BaseModel):
     pass
 
 
-class ReifiedRelation[Target](_BaseObject):
+class ReifiedRelation[Target](_DeclaredClass):
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
 
@@ -21,7 +21,7 @@ class ReifiedRelation[Target](_BaseObject):
     target: Target
 
 
-class ReifiedRelationDocument[Target](_BaseObject):
+class ReifiedRelationDocument[Target](_DeclaredClass):
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
 

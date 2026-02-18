@@ -1,20 +1,44 @@
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
-from pangloss.model_setup.model_bases.base_object import _BaseObject
+from pangloss.model_setup.field_definitions import ModelFields
+from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+
+
+class EntityMeta(BaseMeta):
+    _owner_class: type[Entity] | InheritValue = InheritValue.AS_DEFAULT
+    abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
+    create_with_id: bool | InheritValue = InheritValue.AS_DEFAULT
+    view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
+        default_factory=list
+    )
+    reference_view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
+        default_factory=list
+    )
+    model_field_container: ModelFields = Field(default_factory=ModelFields)
+
+    @property
+    def fields(self):
+        return self.model_field_container.fields
 
 
 class EntityReferenceSet(BaseModel):
     pass
 
 
-class Entity(_BaseObject):
+class Entity(_DeclaredClass, WithMeta[EntityMeta]):
+    _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)
+
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
         from pangloss.model_setup.model_manager import ModelManager
 
         ModelManager.register_entity(cls)
+
+        cls._meta._owner_class = cls
+        ModelManager.try_initialise_all_models()
 
     label: str
 

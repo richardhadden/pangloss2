@@ -1,3 +1,4 @@
+from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
@@ -14,6 +15,7 @@ from pangloss.model_setup.model_bases.sub_document import SubDocument
 from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
 
 ALL_MODELS = {
+    AnnotatedValue,
     Conjunction,
     Document,
     EdgeModel,

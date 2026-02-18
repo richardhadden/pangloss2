@@ -1,5 +1,4 @@
-from datetime import date, datetime
-
+from pangloss.model_setup.model_bases.base_types import BaseTypes
 from pangloss.models import (
     Document,
     Entity,
@@ -10,7 +9,6 @@ from pangloss.models import (
     SubDocument,
 )
 
-type BaseTypes = str | int | float | date | datetime
 type ModelTypes = (
     Document
     | SubDocument

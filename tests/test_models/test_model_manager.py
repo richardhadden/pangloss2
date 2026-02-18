@@ -1,6 +1,8 @@
 from pytest import raises
 
 from pangloss.exceptions import PanglossInitialisationError
+from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
+from pangloss.model_setup.model_bases.base_types import BaseTypes
 from pangloss.model_setup.model_manager import ModelManager
 from pangloss.models import (
     Conjunction,
@@ -63,6 +65,9 @@ def test_register_models_with_model_manager():
     class Certainty(EdgeModel):
         pass
 
+    class WithCertainty[T: type[BaseTypes]](AnnotatedValue[T]):
+        pass
+
     assert ModelManager._documents == {"Factoid": Factoid}
     assert ModelManager._subdocuments == {"Statement": Statement}
     assert ModelManager._heritable_traits == {"Agent": Agent}
@@ -74,3 +79,4 @@ def test_register_models_with_model_manager():
     assert ModelManager._semantic_spaces == {"Negative": Negative}
     assert ModelManager._conjunctions == {"BecauseOfXThenY": BecauseOfXThenY}
     assert ModelManager._edge_models == {"Certainty": Certainty}
+    assert ModelManager._annotated_values == {"WithCertainty": WithCertainty}

@@ -4,3 +4,7 @@ class PanglossInitialisationError(Exception):
 
 class PanglossMetaError(Exception):
     pass
+
+
+class PanglossAwaitingInitialisation(Exception):
+    pass
