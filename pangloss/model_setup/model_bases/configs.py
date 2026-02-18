@@ -1,10 +1,17 @@
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
 
-class RelationConfig(BaseModel):
+@dataclass
+class RelationConfig:
     reverse_name: str
-    overrides_parent_fields: list = Field(default_factory=list)
+    overrides_parent_fields: list = field(default_factory=list)
 
 
+@dataclass
 class DocumentFieldConfig(RelationConfig):
+    pass
+
+
+@dataclass
+class EntityFieldConfig(RelationConfig):
     pass

@@ -1,4 +1,4 @@
-from typing import Annotated, ClassVar, Self
+from typing import Annotated, ClassVar
 
 from pydantic import ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
@@ -64,12 +64,12 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
         "ReferenceSetBase",
     ]
 
-    Create: ClassVar[type[DocumentCreateBase[Self]]]
-    View: ClassVar[type[DocumentViewBase[Self]]]
-    Update: ClassVar[type[DocumentUpdateBase[Self]]]
+    Create: ClassVar[type[DocumentCreateBase]]
+    View: ClassVar[type[DocumentViewBase]]
+    Update: ClassVar[type[DocumentUpdateBase]]
 
-    ReferenceView: ClassVar[type[DocumentReferenceViewBase[Self]]]
-    ReferenceSetBase: ClassVar[type[DocumentReferenceSetBase[Self]]]
+    ReferenceView: ClassVar[type[DocumentReferenceViewBase]]
+    ReferenceSetBase: ClassVar[type[DocumentReferenceSetBase]]
     label: str
 
     @classmethod

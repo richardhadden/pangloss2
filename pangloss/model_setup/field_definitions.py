@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from typing import TYPE_CHECKING
 
 from annotated_types import BaseMetadata
 from pydantic.fields import FieldInfo
@@ -7,6 +8,18 @@ from pydantic.fields import FieldInfo
 from pangloss.exceptions import PanglossInitialisationError
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.base_types import BaseTypes
+from pangloss.model_setup.model_bases.edge_model import EdgeModel
+
+if TYPE_CHECKING:
+    from pangloss.model_setup.model_bases.conjunction import Conjunction
+    from pangloss.model_setup.model_bases.document import Document
+    from pangloss.model_setup.model_bases.entity import Entity
+    from pangloss.model_setup.model_bases.reified_relation import (
+        ReifiedRelation,
+        ReifiedRelationDocument,
+    )
+    from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
+    from pangloss.model_setup.model_bases.sub_document import SubDocument
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -39,6 +52,59 @@ class ListFieldDefinition(FieldDefinition):
     validators: list[type[BaseMetadata]] = dataclass_field(default_factory=list)
     inner_type: type[BaseTypes]
     inner_type_validators: list[BaseMetadata] = dataclass_field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationFieldDefinition(FieldDefinition):
+    annotated_type: (
+        type[_DeclaredClass | BaseTypes | list]
+        | type[list[type[_DeclaredClass | BaseTypes | list]]]
+    )
+    type_options: list[RelationOption] = dataclass_field(default_factory=list)
+    reverse_name: str
+    overrides_parent_field: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationOption:
+    annotated_type: type
+    wrapper: type[list | tuple] | None
+    edge_model: type[EdgeModel] | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToDocument(RelationOption):
+    annotated_type: type[Document]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToSubDocument(RelationOption):
+    annotated_type: type["SubDocument"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToEntity(RelationOption):
+    annotated_type: type["Entity"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToSemanticspace(RelationOption):
+    annotated_type: type["SemanticSpace"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToConjunction(RelationOption):
+    annotated_type: type["Conjunction"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToReifiedRelation(RelationOption):
+    annotated_type: type["ReifiedRelation"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToReifiedRelationDocument(RelationOption):
+    annotated_type: type["ReifiedRelationDocument"]
 
 
 @dataclass

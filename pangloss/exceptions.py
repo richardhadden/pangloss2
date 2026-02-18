@@ -8,3 +8,7 @@ class PanglossMetaError(Exception):
 
 class PanglossAwaitingInitialisation(Exception):
     pass
+
+
+class PanglossModelError(Exception):
+    pass
