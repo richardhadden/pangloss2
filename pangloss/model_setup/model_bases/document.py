@@ -55,7 +55,7 @@ class DocumentReferenceSetBase[T](_ReferenceSetBase[T]):
 class Document(_DeclaredClass, WithMeta[DocumentMeta]):
     model_config = ConfigDict(validate_assignment=True)
 
-    _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # type: ignore
+    _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
     _action_classes: ClassVar[list[str]] = [
         "Create",
         "View",
@@ -78,9 +78,8 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
         from pangloss.model_setup.model_manager import ModelManager
 
         ModelManager.register_document(cls)
-        cls._meta._owner_class = cls
         ModelManager.try_initialise_all_models()
 
-
-class Factoid(Document):
-    pass
+    @classmethod
+    def __pangloss_post_init__(cls):
+        cls._meta: DocumentMeta = cls._meta.model_copy(update={"_owner_class": cls})  # pyright: ignore[reportIncompatibleVariableOverride]

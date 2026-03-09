@@ -25,6 +25,10 @@ class DeclaredClassMeta(ABC):
 class _DeclaredClass(_BaseObject):
     _meta: ClassVar[DeclaredClassMeta]
 
+    @classmethod
+    def __pangloss_post_init__(cls):
+        pass
+
 
 class _ActionClass[T](_BaseObject):
     _owner: ClassVar[type[_DeclaredClass]]

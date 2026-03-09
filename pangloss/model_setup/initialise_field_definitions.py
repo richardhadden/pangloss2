@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.base_object import _DeclaredClass
     from pangloss.model_setup.model_bases.document import Document
     from pangloss.model_setup.model_bases.entity import Entity
-    from pangloss.model_setup.model_bases.sub_document import SubDocument
 
 
 LITERAL_TYPES = {str, int, float, date, datetime}
@@ -63,7 +62,7 @@ def is_list_of_literal(
 
 def is_union_of_relatable(
     annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[Union[Document, Entity, SubDocument]]]:
+) -> TypeIs[type[Union[Document, Entity]]]:
     if isinstance(annotation, UnionType):
         return all(is_relatable(arg) for arg in get_args(annotation))
     return False
@@ -71,7 +70,7 @@ def is_union_of_relatable(
 
 def is_via_edge(
     annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[ViaEdge[Document | Entity | SubDocument, EdgeModel]]]:
+) -> TypeIs[type[ViaEdge[Document | Entity, EdgeModel]]]:
     generic_metadata: PydanticGenericMetadata | None = getattr(
         annotation, "__pydantic_generic_metadata__", None
     )
@@ -83,13 +82,9 @@ def is_via_edge(
 
 def is_relatable(
     annotation: type[Any] | None | UnionType,
-) -> TypeIs[
-    type[list[Document | Entity | SubDocument]]
-    | type[Union[Document, Entity, SubDocument]]
-]:
+) -> TypeIs[type[Document | Entity] | type[Union[Document, Entity]]]:
     from pangloss.model_setup.model_bases.document import Document
     from pangloss.model_setup.model_bases.entity import Entity
-    from pangloss.model_setup.model_bases.sub_document import SubDocument
 
     if is_union_of_relatable(annotation):
         return True
@@ -97,7 +92,7 @@ def is_relatable(
     if is_via_edge(annotation):
         return True
 
-    if isclass(annotation) and issubclass(annotation, (Document, SubDocument, Entity)):
+    if isclass(annotation) and issubclass(annotation, (Document, Entity)):
         return True
     return False
 
@@ -163,14 +158,16 @@ def build_list_field_definition(
 def build_relatable_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> RelationFieldDefinition:
-    if is_relatable(field_info.annotation):
-        type_options = field_info.annotation
-
+    if (
+        is_relatable(field_info.annotation)
+        and not is_union_of_relatable(field_info.annotation)
+        and not is_via_edge(field_info.annotation)
+    ):
         return RelationFieldDefinition(
-            field_on_model=model,
             field_name=field_name,
-            annotated_type=field_info.annotation,
+            field_on_model=model,
         )
+
     else:
         return RelationFieldDefinition()
 

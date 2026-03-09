@@ -15,7 +15,6 @@ from pangloss.models import (
     ReifiedRelation,
     ReifiedRelationDocument,
     SemanticSpace,
-    SubDocument,
 )
 
 
@@ -35,7 +34,7 @@ def test_register_models_with_model_manager():
     class Factoid(Document):
         pass
 
-    class Statement(SubDocument):
+    class Statement(Document):
         pass
 
     class Agent(HeritableTrait):
@@ -68,8 +67,8 @@ def test_register_models_with_model_manager():
     class WithCertainty[T: type[BaseTypes]](AnnotatedValue[T]):
         pass
 
-    assert ModelManager._documents == {"Factoid": Factoid}
-    assert ModelManager._subdocuments == {"Statement": Statement}
+    assert ModelManager._documents == {"Factoid": Factoid, "Statement": Statement}
+
     assert ModelManager._heritable_traits == {"Agent": Agent}
     assert ModelManager._non_heritable_traits == {"Purchaseable": Purchaseable}
     assert ModelManager._entities == {"Person": Person}

@@ -7,7 +7,7 @@ class ReifiedRelationMeta(BaseModel):
     pass
 
 
-class ReifiedRelation[Target](_DeclaredClass):
+class ReifiedRelation[TTarget](_DeclaredClass):
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
 
@@ -17,8 +17,6 @@ class ReifiedRelation[Target](_DeclaredClass):
         from pangloss.model_setup.model_manager import ModelManager
 
         ModelManager.register_reified_relation(cls)
-
-    target: Target
 
 
 class ReifiedRelationDocument[Target](_DeclaredClass):

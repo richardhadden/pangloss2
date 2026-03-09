@@ -18,7 +18,6 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
-from pangloss.model_setup.model_bases.sub_document import SubDocument
 
 
 def test_is_literal():
@@ -121,7 +120,7 @@ def test_is_relatable():
     class Factoid(Document):
         pass
 
-    class Statement(SubDocument):
+    class Statement(Document):
         concerns_dog: Dog
         concerns_dog_list: list[Dog]
         concerns_dog_annotated: Annotated[
@@ -163,7 +162,7 @@ def test_build_relation_field_definitions():
     class Cat(Entity):
         name: str
 
-    class Statement(SubDocument):
+    class Statement(Document):
         concerns_dog: Dog
         concerns_dog_list: list[Dog]
         concerns_dog_annotated: Annotated[

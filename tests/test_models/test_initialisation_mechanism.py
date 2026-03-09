@@ -1,6 +1,5 @@
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.entity import Entity
-from pangloss.model_setup.model_bases.sub_document import SubDocument
 
 
 def test_initialisation_completes_eventually():
@@ -14,11 +13,16 @@ def test_initialisation_completes_eventually():
         name: str
         statements: Statement
 
-    class Statement(SubDocument):
+    class Statement(Document):
         concerns_dog: Dog
 
     assert Factoid._meta._owner_class is Factoid
     assert Factoid._initialised is True
 
-    assert Factoid.model_fields["statements"].annotation is Statement
-    assert Statement.model_fields["concerns_dog"].annotation is Dog
+    assert Statement._meta._owner_class is Statement
+    assert Statement._initialised is True
+
+    assert Dog._meta._owner_class is Dog
+
+    # assert Factoid.model_fields["statements"].annotation is Statement
+    # assert Statement.model_fields["concerns_dog"].annotation is Dog

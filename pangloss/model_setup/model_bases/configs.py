@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class RelationConfig:
-    reverse_name: str
+    reverse_name: str | None = None
     overrides_parent_fields: list = field(default_factory=list)
 
 

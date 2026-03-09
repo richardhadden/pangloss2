@@ -11,7 +11,6 @@ from pangloss.model_setup.model_bases.reified_relation import (
 )
 from pangloss.model_setup.model_bases.relation import Relation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.model_bases.sub_document import SubDocument
 from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
 
 ALL_MODELS = {
@@ -26,7 +25,6 @@ ALL_MODELS = {
     ReifiedRelation,
     ReifiedRelationDocument,
     SemanticSpace,
-    SubDocument,
     Relation,
 }
 CONFIGS = {RelationConfig}

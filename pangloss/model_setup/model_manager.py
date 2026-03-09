@@ -25,7 +25,6 @@ if TYPE_CHECKING:
         ReifiedRelationDocument,
         Relation,
         SemanticSpace,
-        SubDocument,
     )
 
 type ModelTypes = (
@@ -40,7 +39,6 @@ type ModelTypes = (
     | ReifiedRelationDocument
     | Relation
     | SemanticSpace
-    | SubDocument
 )
 
 type IntialisationTypes = (
@@ -52,7 +50,6 @@ type IntialisationTypes = (
     | NonHeritableTrait
     | ReifiedRelation
     | SemanticSpace
-    | SubDocument
 )
 
 
@@ -105,7 +102,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         raise PanglossInitialisationError("ModelManager cannot be subclassed")
 
     _documents: dict[str, type[Document]] = {}
-    _subdocuments: dict[str, type[SubDocument]] = {}
+
     _entities: dict[str, type[Entity]] = {}
     _heritable_traits: dict[str, type[HeritableTrait]] = {}
     _non_heritable_traits: dict[str, type[NonHeritableTrait]] = {}
@@ -123,7 +120,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     def all_models(cls) -> ChainMap[str, type[_DeclaredClass]]:
         return ChainMap(
             cls._documents,
-            cls._subdocuments,
             cls._entities,
             cls._heritable_traits,
             cls._non_heritable_traits,
@@ -142,7 +138,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     def initialisable_models(cls) -> ChainMap[str, type[_DeclaredClass]]:
         return ChainMap(
             cls._documents,
-            cls._subdocuments,
             cls._entities,
             cls._heritable_traits,
             cls._non_heritable_traits,
@@ -159,7 +154,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     @classmethod
     def _reset(cls) -> None:
         cls._documents: dict[str, type[Document]] = {}
-        cls._subdocuments: dict[str, type[SubDocument]] = {}
         cls._entities: dict[str, type[Entity]] = {}
         cls._heritable_traits: dict[str, type[HeritableTrait]] = {}
         cls._non_heritable_traits: dict[str, type[NonHeritableTrait]] = {}
@@ -175,10 +169,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     @classmethod
     def register_document(cls, model: type[Document]):
         cls._documents[model.__name__] = model
-
-    @classmethod
-    def register_subdocument(cls, model: type[SubDocument]):
-        cls._subdocuments[model.__name__] = model
 
     @classmethod
     def register_entity(cls, model: type[Entity]):
@@ -269,7 +259,11 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
             try:
                 initialise_field_definitions(model)
 
-                model._initialised = True
-
             except Exception:
                 pass
+
+        for model in cls.all_models().values():
+            print(model)
+            model.__pangloss_post_init__()
+
+            model._initialised = True

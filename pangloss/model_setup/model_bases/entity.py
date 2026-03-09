@@ -29,17 +29,26 @@ class EntityReferenceSet(BaseModel):
 
 
 class Entity(_DeclaredClass, WithMeta[EntityMeta]):
-    _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)
+    _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
+    _action_classes: ClassVar[list[str]] = [
+        "Create",
+        "View",
+        "Update",
+        "ReferenceView",
+        "ReferenceSet",
+        "ReferenceCreate",
+    ]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
         from pangloss.model_setup.model_manager import ModelManager
 
         ModelManager.register_entity(cls)
-
-        cls._meta._owner_class = cls
         ModelManager.try_initialise_all_models()
 
-    label: str
+    @classmethod
+    def __pangloss_post_init__(cls):
+        cls._meta = cls._meta.model_copy()  # pyright: ignore[reportIncompatibleVariableOverride]
+        cls._meta._owner_class = cls
 
     ReferenceSet: ClassVar[EntityReferenceSet]
