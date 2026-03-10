@@ -1,9 +1,9 @@
-from pydantic import BaseModel
+from pydantic_meta_kit import BaseMeta
 
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 
 
-class TraitMeta(BaseModel):
+class TraitMeta(BaseMeta):
     pass
 
 

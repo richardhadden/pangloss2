@@ -19,7 +19,6 @@ if TYPE_CHECKING:
         ReifiedRelationDocument,
     )
     from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-    from pangloss.model_setup.model_bases.sub_document import SubDocument
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -62,7 +61,7 @@ class RelationFieldDefinition(FieldDefinition):
     )
     type_options: list[RelationOption] = dataclass_field(default_factory=list)
     reverse_name: str
-    overrides_parent_field: str
+    overrides_parent_fields: list[str]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -75,11 +74,6 @@ class RelationOption:
 @dataclass(frozen=True, kw_only=True)
 class RelationToDocument(RelationOption):
     annotated_type: type[Document]
-
-
-@dataclass(frozen=True, kw_only=True)
-class RelationToSubDocument(RelationOption):
-    annotated_type: type["SubDocument"]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -112,4 +106,5 @@ class ModelFields:
     fields: dict[str, FieldDefinition] = dataclass_field(default_factory=dict)
 
     def add_field(self, name: str, field_definition: FieldDefinition):
+
         self.fields[name] = field_definition

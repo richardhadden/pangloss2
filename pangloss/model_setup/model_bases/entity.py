@@ -3,7 +3,7 @@ from typing import Annotated, ClassVar
 from pydantic import BaseModel, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
-from pangloss.model_setup.field_definitions import ModelFields
+from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 
 
@@ -17,11 +17,13 @@ class EntityMeta(BaseMeta):
     reference_view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
         default_factory=list
     )
-    model_field_container: ModelFields = Field(default_factory=ModelFields)
+    field_definitions: ModelFields = Field(default_factory=ModelFields)
 
     @property
-    def fields(self):
-        return self.model_field_container.fields
+    def fields(self) -> dict[str, FieldDefinition]:
+        if self.field_definitions:
+            return self.field_definitions.fields
+        raise Exception(f"{self.__class__.__name__}.field_definition missing")
 
 
 class EntityReferenceSet(BaseModel):
@@ -43,12 +45,19 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
         from pangloss.model_setup.model_manager import ModelManager
 
+        cls._initialised = False
+
         ModelManager.register_entity(cls)
+
+        cls._meta: EntityMeta = cls._meta.model_copy(  # pyright: ignore[reportIncompatibleVariableOverride]
+            update={"field_definitions": ModelFields()}
+        )
+        cls._meta._owner_class = cls
+
         ModelManager.try_initialise_all_models()
 
     @classmethod
     def __pangloss_post_init__(cls):
-        cls._meta = cls._meta.model_copy()  # pyright: ignore[reportIncompatibleVariableOverride]
-        cls._meta._owner_class = cls
+        pass
 
     ReferenceSet: ClassVar[EntityReferenceSet]

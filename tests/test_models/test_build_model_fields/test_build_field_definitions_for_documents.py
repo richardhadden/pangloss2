@@ -20,6 +20,58 @@ from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 
 
+def test_meta_fields():
+
+    class Dog(Entity):
+        name: str
+
+    class Cat(Entity):
+        name: str
+
+    class Tabby(Cat):
+        name: str
+
+    class SubTabby(Tabby):
+        name: str
+
+    class Statement(Document):
+        label: str
+
+    class Action(Statement):
+        label: str
+
+    assert Dog._meta is not Cat._meta
+
+    assert Cat._meta is not Tabby._meta
+    assert Cat._meta.field_definitions is not Tabby._meta.field_definitions
+    assert Cat._meta.fields is not Tabby._meta.fields
+
+    assert Cat._meta is not Dog._meta
+    assert Tabby._meta is not Cat._meta
+
+    assert Cat._meta._owner_class is Cat
+    assert Dog._meta._owner_class is Dog
+    assert Tabby._meta._owner_class is Tabby
+
+    assert Dog._meta.fields["name"]
+    assert Cat._meta.fields["name"]
+    assert Tabby._meta.fields["name"]
+
+    assert Dog._meta.fields["name"].field_on_model is Dog
+    assert Cat._meta.fields["name"].field_on_model is Cat
+    assert Tabby._meta.fields["name"].field_on_model is Tabby
+
+    assert Statement._meta.fields
+    assert Action._meta is not Statement._meta
+    assert Action._meta.field_definitions is not Statement._meta.field_definitions
+
+    assert Statement._meta.fields["label"]
+    assert Action._meta.fields["label"]
+
+    assert Statement._meta.fields["label"].field_on_model is Statement
+    assert Action._meta.fields["label"].field_on_model is Action
+
+
 def test_is_literal():
     class Statement(Document):
         pass
@@ -174,4 +226,22 @@ def test_build_relation_field_definitions():
             RelationConfig(reverse_name="is_animal_in"),
         ]
 
-    assert Statement._meta.fields["concerns_dog"]
+    assert Dog._meta.field_definitions
+
+    dog_name_field = Dog._meta.fields["name"]
+    assert dog_name_field
+    assert isinstance(dog_name_field, LiteralFieldDefinition)
+    assert dog_name_field.annotated_type is str
+    assert dog_name_field.field_on_model is Dog
+    assert dog_name_field.field_name == "name"
+    assert dog_name_field.validators == []
+
+    cat_name_field = Cat._meta.fields["name"]
+    assert cat_name_field
+    assert isinstance(cat_name_field, LiteralFieldDefinition)
+    assert cat_name_field.annotated_type is str
+    assert cat_name_field.field_on_model is Cat
+    assert cat_name_field.field_name == "name"
+    assert cat_name_field.validators == []
+
+    # assert Statement._meta.fields["concerns_dog"]

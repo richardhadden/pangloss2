@@ -70,16 +70,21 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
 
     ReferenceView: ClassVar[type[DocumentReferenceViewBase]]
     ReferenceSetBase: ClassVar[type[DocumentReferenceSetBase]]
-    label: str
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
 
         from pangloss.model_setup.model_manager import ModelManager
 
+        # Set model it uninitialised, as may inherit _initialised from parent class
+        cls._initialised = False
+
+        # Make sure _meta class is new and not inherited
+        cls._meta = cls._meta.model_copy(  # pyright: ignore[reportIncompatibleVariableOverride]
+            update={"field_definitions": ModelFields()}
+        )
+        # Set owner class on cls._meta
+        cls._meta._owner_class = cls
+
         ModelManager.register_document(cls)
         ModelManager.try_initialise_all_models()
-
-    @classmethod
-    def __pangloss_post_init__(cls):
-        cls._meta: DocumentMeta = cls._meta.model_copy(update={"_owner_class": cls})  # pyright: ignore[reportIncompatibleVariableOverride]

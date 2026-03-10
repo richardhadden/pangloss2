@@ -1,3 +1,10 @@
+"""ModelManager and related helpers.
+
+This module provides a central registry of all Pangloss model types and
+coordinates deferred initialisation of models once their dependencies are
+registered.
+"""
+
 from collections import ChainMap
 from typing import TYPE_CHECKING, Any, no_type_check
 
@@ -54,6 +61,12 @@ type IntialisationTypes = (
 
 
 class ClassPropertyDescriptor(object):
+    """Descriptor enabling class-level properties with optional setters.
+
+    This allows defining attributes that behave like properties when accessed
+    on the class itself (rather than on an instance), including a setter.
+    """
+
     def __init__(self, fget, fset=None):
         self.fget = fget
         self.fset = fset
@@ -89,12 +102,24 @@ class ClassPropertyMetaClass(type):
 
 
 def classproperty(func):
+    """Create a class-level property.
+
+    Similar to @property, but the property is accessed via the class.
+    """
+
     if not isinstance(func, (classmethod, staticmethod)):
         func = classmethod(func)
     return ClassPropertyDescriptor(func)
 
 
 class ModelManager(metaclass=ClassPropertyMetaClass):
+    """Central registry and initialisation coordinator for Pangloss models.
+
+    Models register themselves with ModelManager as they are declared. This
+    allows deferred initialisation of model field definitions once all
+    required types are available.
+    """
+
     def __init__(self) -> None:
         raise PanglossInitialisationError("ModelManager cannot be initialised")
 
@@ -118,6 +143,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     @classmethod
     @no_type_check
     def all_models(cls) -> ChainMap[str, type[_DeclaredClass]]:
+        """Return a mapping of every registered model type by class name."""
+
         return ChainMap(
             cls._documents,
             cls._entities,
@@ -136,6 +163,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     @classmethod
     @no_type_check
     def initialisable_models(cls) -> ChainMap[str, type[_DeclaredClass]]:
+        """Return models that should be initialised (registered types)."""
+
         return ChainMap(
             cls._documents,
             cls._entities,
@@ -153,6 +182,11 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
     @classmethod
     def _reset(cls) -> None:
+        """Reset all registries to an empty state.
+
+        Primarily used for testing to ensure a clean slate between runs.
+        """
+
         cls._documents: dict[str, type[Document]] = {}
         cls._entities: dict[str, type[Entity]] = {}
         cls._heritable_traits: dict[str, type[HeritableTrait]] = {}
@@ -168,10 +202,19 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
     @classmethod
     def register_document(cls, model: type[Document]):
+        """Register a document model class.
+
+        Document classes are a core model type in Pangloss and are tracked so that
+        their field definitions can be initialised when all types are available.
+        """
+
         cls._documents[model.__name__] = model
 
     @classmethod
     def register_entity(cls, model: type[Entity]):
+        """Register an entity model class."""
+
+        print("Registering", model.__name__)
         cls._entities[model.__name__] = model
 
     @classmethod
@@ -223,14 +266,17 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
     @classmethod
     def try_initialise_all_models(cls):
-        """Checks all previous models to see if they can be rebuilt, if not already complete.
+        """Attempt to initialise any models that have all dependencies declared.
 
-        Then check whether there are any models that are not complete. If so, pass: this method
-        will be called again by the next model to be declared.
+        This method is invoked each time a new model is registered. It will:
 
-        If all currently declared models are complete (i.e. all dependencies declared) we
-        can go about and init
+        1. Attempt to rebuild each registered model, allowing Pydantic to resolve
+           forward references once all types are available.
+        2. If every model is complete, initialise field definitions for any models
+           that have not yet been initialised.
 
+        Models that are still missing dependencies are left untouched and will be
+        revisited when additional types are registered.
         """
 
         # Go through all models and try to rebuild, which will succeed is all
@@ -241,7 +287,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 try:
                     model.model_rebuild(_types_namespace=cls.all_models())
                 except PydanticUndefinedAnnotation:
-                    pass
+                    print("Contains undefined annotation", model.__name__)
 
         # Check all models so far have no undeclared dependencies; otherwise, return
         if not all(model.__pydantic_complete__ for model in cls.all_models().values()):
@@ -258,12 +304,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         for model in uninitialised_models:
             try:
                 initialise_field_definitions(model)
-
-            except Exception:
-                pass
-
-        for model in cls.all_models().values():
-            print(model)
-            model.__pangloss_post_init__()
-
-            model._initialised = True
+                model._initialised = True
+            except Exception as e:
+                print(e)

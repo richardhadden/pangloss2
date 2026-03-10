@@ -166,6 +166,10 @@ def build_relatable_field_definition(
         return RelationFieldDefinition(
             field_name=field_name,
             field_on_model=model,
+            annotated_type=field_info.annotation,
+            type_options=[],
+            overrides_parent_fields=[],
+            reverse_name=f"{field_name}_reverse",
         )
 
     else:
@@ -173,9 +177,12 @@ def build_relatable_field_definition(
 
 
 def initialise_field_definitions(model: type[_DeclaredClass]):
+    print("=========")
+    print("initialising fields on ", model.__name__)
 
     for field_name, field_info in model.model_fields.items():
-        if is_relatable(field_info.annotation) or is_list_relatable(
+        print("---------", field_name)
+        """ if is_relatable(field_info.annotation) or is_list_relatable(
             field_info.annotation
         ):
             model._meta.field_definitions.add_field(
@@ -183,7 +190,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 field_definition=build_relatable_field_definition(
                     field_name, field_info, model
                 ),
-            )
+            ) """
 
         if is_list_of_literal(field_info.annotation):
             model._meta.field_definitions.add_field(
@@ -194,6 +201,8 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             )
 
         elif is_literal(field_info.annotation):
+            print("is literal")
+            print(field_name)
             model._meta.field_definitions.add_field(
                 field_name,
                 LiteralFieldDefinition(
