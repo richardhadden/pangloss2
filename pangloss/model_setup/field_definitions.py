@@ -53,21 +53,24 @@ class ListFieldDefinition(FieldDefinition):
     inner_type_validators: list[BaseMetadata] = dataclass_field(default_factory=list)
 
 
+type TRelationFieldDefinitionAnnotation = (
+    type[_DeclaredClass | BaseTypes | list]
+    | type[list[type[_DeclaredClass | BaseTypes | list]]]
+)
+
+
 @dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):
-    annotated_type: (
-        type[_DeclaredClass | BaseTypes | list]
-        | type[list[type[_DeclaredClass | BaseTypes | list]]]
-    )
-    type_options: list[RelationOption] = dataclass_field(default_factory=list)
+    annotated_type: TRelationFieldDefinitionAnnotation
+    type_options: set[RelationOption] = dataclass_field(default_factory=set)
     reverse_name: str
     overrides_parent_fields: list[str]
+    wrapper: type[list | tuple] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class RelationOption:
     annotated_type: type
-    wrapper: type[list | tuple] | None
     edge_model: type[EdgeModel] | None = None
 
 

@@ -53,6 +53,8 @@ class DocumentReferenceSetBase[T](_ReferenceSetBase[T]):
 
 
 class Document(_DeclaredClass, WithMeta[DocumentMeta]):
+    """An arbitrarily complex object, with nestable subdocuments and relations to Entities"""
+
     model_config = ConfigDict(validate_assignment=True)
 
     _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
@@ -80,11 +82,10 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
         cls._initialised = False
 
         # Make sure _meta class is new and not inherited
-        cls._meta = cls._meta.model_copy(  # pyright: ignore[reportIncompatibleVariableOverride]
-            update={"field_definitions": ModelFields()}
-        )
+        cls._meta = cls.__dict__.get("_meta", DocumentMeta())  # pyright: ignore[reportIncompatibleVariableOverride]
+
         # Set owner class on cls._meta
         cls._meta._owner_class = cls
 
         ModelManager.register_document(cls)
-        ModelManager.try_initialise_all_models()
+        ModelManager.try_initialise_all_models(cls)

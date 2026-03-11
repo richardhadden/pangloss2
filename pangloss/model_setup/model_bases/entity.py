@@ -49,12 +49,11 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
 
         ModelManager.register_entity(cls)
 
-        cls._meta: EntityMeta = cls._meta.model_copy(  # pyright: ignore[reportIncompatibleVariableOverride]
-            update={"field_definitions": ModelFields()}
-        )
+        cls._meta = cls.__dict__.get("_meta", EntityMeta())  # pyright: ignore[reportIncompatibleVariableOverride]
+
         cls._meta._owner_class = cls
 
-        ModelManager.try_initialise_all_models()
+        ModelManager.try_initialise_all_models(cls)
 
     @classmethod
     def __pangloss_post_init__(cls):

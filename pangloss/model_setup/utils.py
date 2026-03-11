@@ -1,0 +1,156 @@
+from inspect import isclass
+from typing import overload
+
+from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pangloss.model_setup.model_bases.document import Document
+from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+
+
+@overload
+def get_concrete_types(
+    model: type[Document],
+    include_abstract: bool = False,
+) -> set[type[Document]]: ...
+
+
+@overload
+def get_concrete_types(
+    model: type[Entity],
+    include_abstract: bool = False,
+) -> set[type[Entity]]: ...
+
+
+@overload
+def get_concrete_types(
+    model: type[HeritableTrait | NonHeritableTrait],
+    include_abstract: bool = False,
+) -> set[type[Document]] | set[type[Entity]]: ...
+
+
+def get_concrete_types(
+    model: type[Document | Entity | HeritableTrait | NonHeritableTrait],
+    include_abstract: bool = False,
+) -> set[type[Document]] | set[type[Entity]]:
+    """Return concrete (non-abstract) subclasses for a model.
+
+    This is a convenience wrapper around :func:`generic_get_subclasses` that
+    includes the model itself when it is concrete (or when
+    ``include_abstract=True``).
+
+    Args:
+        model: A Pangloss model class (Document, Entity or Trait).
+        include_abstract: If True, include abstract base classes in the result.
+
+    Returns:
+        A set of concrete subclasses (and possibly the model itself).
+    """
+
+    concrete_types = []
+
+    if isclass(model) and issubclass(model, (Document, Entity)):
+        if not model._meta.abstract or include_abstract:
+            concrete_types.append(model)
+        concrete_types.extend(
+            generic_get_subclasses(model, include_abstract=include_abstract)
+        )
+    return set(concrete_types)
+
+
+def generic_get_subclasses[T: Document | Entity](
+    model: type[T], include_abstract: bool = False
+) -> set[type[T]]:
+    """Recursively find subclasses of a Document or Entity model.
+
+    Traverses the subclass tree and returns all reachable subclasses, optionally
+    filtering out abstract models.
+
+    Args:
+        model: The base class to inspect.
+        include_abstract: If False, exclude models whose ``_meta.abstract`` is True.
+
+    Returns:
+        A set of subclass types.
+    """
+    subclasses = []
+    for subclass in model.__subclasses__():
+        if not subclass._meta.abstract or include_abstract:
+            subclasses += [
+                subclass,
+                *generic_get_subclasses(subclass, include_abstract=include_abstract),
+            ]
+        else:
+            subclasses += generic_get_subclasses(
+                subclass, include_abstract=include_abstract
+            )
+    return set(subclasses)
+
+
+def model_is_trait(
+    cls: type[_DeclaredClass] | type[HeritableTrait] | type[NonHeritableTrait],
+):
+    """Determines whether a model is a Trait, or subclass of a Trait,
+    rather than a _DeclaredClass type to which a Trait has been applied"""
+
+    return (
+        isclass(cls)
+        and issubclass(cls, (HeritableTrait, NonHeritableTrait))
+        and is_subclass_of_heritable_trait(cls)
+    )
+
+
+def is_subclass_of_heritable_trait(
+    cls: type[HeritableTrait] | type[NonHeritableTrait],
+) -> bool:
+    """Determine whether a class is a subclass of a Trait,
+    not the application of a trait to a real Document or Entity class.
+
+    This should work by not having BaseNode in its class hierarchy
+    """
+    for parent in cls.mro()[1:]:
+        if issubclass(parent, (Document, Entity)):
+            return False
+    else:
+        return True
+
+
+def get_trait_subclasses(
+    trait: type[HeritableTrait] | type[NonHeritableTrait],
+) -> set[type[HeritableTrait] | type[NonHeritableTrait]]:
+    """Get subclasses of a Trait that are Traits, not instantiations
+    of a Trait"""
+
+    subclasses = [trait]
+    for subclass in trait.__subclasses__():
+        if model_is_trait(subclass):
+            subclasses.extend(get_trait_subclasses(subclass))
+    return set(subclasses)
+
+
+def get_direct_instantiations_of_trait(
+    trait: type[HeritableTrait] | type[NonHeritableTrait],
+    follow_trait_subclasses: bool = False,
+):
+    """Given a Trait class, find the models to which it is *directly* applied,
+    i.e. omitting children"""
+
+    if follow_trait_subclasses:
+        trait_subclasses = [
+            trait_subclass for trait_subclass in get_trait_subclasses(trait)
+        ]
+        instantiations_of_trait = []
+        for trait_subclass in trait_subclasses:
+            instantiations_of_trait.extend(
+                subclass
+                for subclass in trait_subclass.__subclasses__()
+                if issubclass(subclass, (Document, Entity))
+            )
+        return set(instantiations_of_trait)
+
+    return set(
+        [
+            subclass
+            for subclass in trait.__subclasses__()
+            if issubclass(subclass, (Document, Entity))
+        ]
+    )

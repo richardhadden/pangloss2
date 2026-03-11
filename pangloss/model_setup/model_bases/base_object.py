@@ -24,10 +24,11 @@ class DeclaredClassMeta(ABC):
 
 class _DeclaredClass(_BaseObject):
     _meta: ClassVar[DeclaredClassMeta]
+    depends_on_classes: ClassVar[set[type[_DeclaredClass]]]
 
     @classmethod
-    def __pangloss_post_init__(cls):
-        pass
+    def __pydantic_init_subclass__(cls, **_):
+        cls.depends_on_classes = set()
 
 
 class _ActionClass[T](_BaseObject):

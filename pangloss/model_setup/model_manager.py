@@ -214,7 +214,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     def register_entity(cls, model: type[Entity]):
         """Register an entity model class."""
 
-        print("Registering", model.__name__)
         cls._entities[model.__name__] = model
 
     @classmethod
@@ -265,7 +264,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
             cls._annotated_values[model.__name__] = model
 
     @classmethod
-    def try_initialise_all_models(cls):
+    def try_initialise_all_models(cls, declared_class):
         """Attempt to initialise any models that have all dependencies declared.
 
         This method is invoked each time a new model is registered. It will:
@@ -287,7 +286,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 try:
                     model.model_rebuild(_types_namespace=cls.all_models())
                 except PydanticUndefinedAnnotation:
-                    print("Contains undefined annotation", model.__name__)
+                    pass
 
         # Check all models so far have no undeclared dependencies; otherwise, return
         if not all(model.__pydantic_complete__ for model in cls.all_models().values()):
@@ -302,8 +301,14 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         ]
 
         for model in uninitialised_models:
-            try:
-                initialise_field_definitions(model)
-                model._initialised = True
-            except Exception as e:
-                print(e)
+            initialise_field_definitions(model)
+            model._initialised = True
+
+        # If the current declared_class is a subclass of something else
+        # that is a dependency of a class already declared, we need to rebuild
+        # the model fields for that class so that the subclass is taken into account
+        for model in cls.all_models().values():
+            for kls in model.depends_on_classes:
+                if issubclass(declared_class, kls):
+                    initialise_field_definitions(model)
+                    break

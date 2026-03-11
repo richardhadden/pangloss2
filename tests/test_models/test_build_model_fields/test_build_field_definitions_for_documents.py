@@ -1,11 +1,14 @@
 from datetime import date, datetime
-from typing import Annotated
+from types import UnionType
+from typing import Annotated, get_args, get_origin
 
 from annotated_types import MaxLen
 
 from pangloss.model_setup.field_definitions import (
     ListFieldDefinition,
     LiteralFieldDefinition,
+    RelationFieldDefinition,
+    RelationToEntity,
 )
 from pangloss.model_setup.initialise_field_definitions import (
     is_list_of_literal,
@@ -201,30 +204,16 @@ def test_is_relatable():
     assert is_list_relatable(list[Factoid])
 
 
-def test_build_relation_field_definitions():
-    class ToDogEdge(EdgeModel):
-        when: date
-
-    class Factoid(Document):
-        has_statements: Statement
+def test_build_relation_field_definition_with_simple():
 
     class Dog(Entity):
         name: str
 
-    class Cat(Entity):
-        name: str
+    class Puppy(Dog):
+        pass
 
     class Statement(Document):
         concerns_dog: Dog
-        concerns_dog_list: list[Dog]
-        concerns_dog_annotated: Annotated[
-            list[ViaEdge[Dog, ToDogEdge]],
-            EntityFieldConfig(reverse_name="is_concerned_in"),
-        ]
-        concerns_animal_multiple: Annotated[
-            list[ViaEdge[Dog, ToDogEdge]] | Cat,
-            RelationConfig(reverse_name="is_animal_in"),
-        ]
 
     assert Dog._meta.field_definitions
 
@@ -236,12 +225,152 @@ def test_build_relation_field_definitions():
     assert dog_name_field.field_name == "name"
     assert dog_name_field.validators == []
 
-    cat_name_field = Cat._meta.fields["name"]
-    assert cat_name_field
-    assert isinstance(cat_name_field, LiteralFieldDefinition)
-    assert cat_name_field.annotated_type is str
-    assert cat_name_field.field_on_model is Cat
-    assert cat_name_field.field_name == "name"
-    assert cat_name_field.validators == []
+    statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
+    assert statement_concerns_dog_field
+    assert isinstance(statement_concerns_dog_field, RelationFieldDefinition)
+    assert statement_concerns_dog_field.annotated_type is Dog
+    assert statement_concerns_dog_field.field_on_model is Statement
+    assert statement_concerns_dog_field.field_name == "concerns_dog"
+    assert statement_concerns_dog_field.type_options == set(
+        [
+            RelationToEntity(annotated_type=Dog),
+            RelationToEntity(annotated_type=Puppy),
+        ]
+    )
+    assert statement_concerns_dog_field.wrapper is None
 
-    # assert Statement._meta.fields["concerns_dog"]
+
+def test_build_relation_field_definition_with_simple_out_of_order_declaration():
+    """Puppy is defined *after* Statement but should still be considered a subclass
+    of Dog, which was the only known thing at the point where Statement was
+    declared"""
+
+    class Dog(Entity):
+        name: str
+
+    class Statement(Document):
+        concerns_dog: Dog
+
+    class Puppy(Dog):
+        pass
+
+    assert Dog._meta.field_definitions
+
+    dog_name_field = Dog._meta.fields["name"]
+    assert dog_name_field
+    assert isinstance(dog_name_field, LiteralFieldDefinition)
+    assert dog_name_field.annotated_type is str
+    assert dog_name_field.field_on_model is Dog
+    assert dog_name_field.field_name == "name"
+    assert dog_name_field.validators == []
+
+    statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
+    assert statement_concerns_dog_field
+    assert isinstance(statement_concerns_dog_field, RelationFieldDefinition)
+    assert statement_concerns_dog_field.annotated_type is Dog
+    assert statement_concerns_dog_field.field_on_model is Statement
+    assert statement_concerns_dog_field.field_name == "concerns_dog"
+    assert statement_concerns_dog_field.type_options == set(
+        [
+            RelationToEntity(annotated_type=Dog),
+            RelationToEntity(annotated_type=Puppy),
+        ]
+    )
+    assert statement_concerns_dog_field.wrapper is None
+
+
+def test_build_relation_field_definition_with_simple_list():
+    class Dog(Entity):
+        name: str
+
+    class Puppy(Dog):
+        pass
+
+    class Statement(Document):
+        concerns_dog_list: list[Dog]
+        # concerns_dog_cat: Dog | Cat
+        # concerns_dog_cat_list: list[Dog | Cat]
+        # concerns_dog_annotated: Annotated[
+        #    list[ViaEdge[Dog, ToDogEdge]],
+        #    RelationConfig(reverse_name="is_concerned_in"),
+        # ]
+        # concerns_animal_multiple: Annotated[
+        #    list[ViaEdge[Dog, ToDogEdge] | Cat],
+        #    RelationConfig(reverse_name="is_animal_in"),
+        # ]
+
+    statement_concerns_dog_list_field = Statement._meta.fields["concerns_dog_list"]
+    assert statement_concerns_dog_list_field
+    assert isinstance(statement_concerns_dog_list_field, RelationFieldDefinition)
+    assert get_origin(statement_concerns_dog_list_field.annotated_type) is list
+    assert get_args(statement_concerns_dog_list_field.annotated_type)[0] is Dog
+    assert statement_concerns_dog_list_field.field_on_model is Statement
+    assert statement_concerns_dog_list_field.field_name == "concerns_dog_list"
+    assert statement_concerns_dog_list_field.type_options == set(
+        [
+            RelationToEntity(annotated_type=Dog),
+            RelationToEntity(annotated_type=Puppy),
+        ]
+    )
+    assert statement_concerns_dog_list_field.wrapper is list
+
+
+def test_build_relation_field_definition_with_simple_union():
+    class Dog(Entity):
+        name: str
+
+    class Puppy(Dog):
+        pass
+
+    class Cat(Entity):
+        pass
+
+    class Statement(Document):
+        concerns_dog_cat: Dog | Cat
+
+    statement_concerns_dog_cat_field = Statement._meta.fields["concerns_dog_cat"]
+    assert statement_concerns_dog_cat_field
+    assert isinstance(statement_concerns_dog_cat_field, RelationFieldDefinition)
+    assert get_origin(statement_concerns_dog_cat_field.annotated_type) is UnionType
+    assert get_args(statement_concerns_dog_cat_field.annotated_type) == (Dog, Cat)
+    assert statement_concerns_dog_cat_field.field_on_model is Statement
+    assert statement_concerns_dog_cat_field.field_name == "concerns_dog_cat"
+    assert statement_concerns_dog_cat_field.reverse_name == "concerns_dog_cat_reverse"
+    assert statement_concerns_dog_cat_field.type_options == set(
+        [
+            RelationToEntity(annotated_type=Dog),
+            RelationToEntity(annotated_type=Puppy),
+            RelationToEntity(annotated_type=Cat),
+        ]
+    )
+    assert statement_concerns_dog_cat_field.wrapper is None
+
+
+def test_build_relation_field_definition_with_list_union():
+
+    class Statement(Document):
+        concerns_dog_cat_list: list[Dog | Cat]
+
+    class Dog(Entity):
+        name: str
+
+    class Puppy(Dog):
+        pass
+
+    class Cat(Entity):
+        pass
+
+    statement_concerns_dog_cat_field = Statement._meta.fields["concerns_dog_cat_list"]
+    assert statement_concerns_dog_cat_field
+    assert isinstance(statement_concerns_dog_cat_field, RelationFieldDefinition)
+    assert get_origin(statement_concerns_dog_cat_field.annotated_type) is list
+    assert (
+        get_origin(get_args(statement_concerns_dog_cat_field.annotated_type)[0])
+        is UnionType
+    )
+    assert get_args(get_args(statement_concerns_dog_cat_field.annotated_type)[0]) == (
+        Dog,
+        Cat,
+    )
+    assert statement_concerns_dog_cat_field.field_name == "concerns_dog_cat_list"
+    assert statement_concerns_dog_cat_field.field_on_model is Statement

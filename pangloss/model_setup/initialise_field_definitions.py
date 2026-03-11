@@ -12,14 +12,20 @@ from pangloss.model_setup.field_definitions import (
     ListFieldDefinition,
     LiteralFieldDefinition,
     RelationFieldDefinition,
+    RelationOption,
+    RelationToDocument,
+    RelationToEntity,
+    TRelationFieldDefinitionAnnotation,
 )
+from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
+from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
+from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+from pangloss.model_setup.utils import get_concrete_types
 
 if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.base_object import _DeclaredClass
-    from pangloss.model_setup.model_bases.document import Document
-    from pangloss.model_setup.model_bases.entity import Entity
 
 
 LITERAL_TYPES = {str, int, float, date, datetime}
@@ -62,7 +68,7 @@ def is_list_of_literal(
 
 def is_union_of_relatable(
     annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[Union[Document, Entity]]]:
+) -> TypeIs[UnionType]:
     if isinstance(annotation, UnionType):
         return all(is_relatable(arg) for arg in get_args(annotation))
     return False
@@ -81,10 +87,10 @@ def is_via_edge(
 
 
 def is_relatable(
-    annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[Document | Entity] | type[Union[Document, Entity]]]:
-    from pangloss.model_setup.model_bases.document import Document
-    from pangloss.model_setup.model_bases.entity import Entity
+    annotation: type[Any] | None | type[Any | Any] | UnionType,
+) -> TypeIs[type[_DeclaredClass] | type[Union[_DeclaredClass, _DeclaredClass]]]:
+    # from pangloss.model_setup.model_bases.document import Document
+    # from pangloss.model_setup.model_bases.entity import Entity
 
     if is_union_of_relatable(annotation):
         return True
@@ -92,7 +98,15 @@ def is_relatable(
     if is_via_edge(annotation):
         return True
 
-    if isclass(annotation) and issubclass(annotation, (Document, Entity)):
+    if isclass(annotation) and issubclass(
+        annotation, (Document, Entity, HeritableTrait, NonHeritableTrait)
+    ):
+        return True
+    return False
+
+
+def is_single_relatable(annotation: type[Any]) -> TypeIs[type[_DeclaredClass]]:
+    if isclass(annotation) and issubclass(annotation, _DeclaredClass):
         return True
     return False
 
@@ -155,34 +169,74 @@ def build_list_field_definition(
         )
 
 
+def build_relation_options(
+    annotation: TRelationFieldDefinitionAnnotation,
+) -> set[RelationOption]:
+    relation_options = []
+
+    origin = get_origin(annotation)
+    if isclass(origin) and issubclass(origin, UnionType):
+        for union_arg in get_args(annotation):
+            relation_options.extend(build_relation_options(union_arg))
+
+    if isclass(annotation) and issubclass(annotation, Document):
+        for concrete_type in get_concrete_types(annotation):
+            relation_options.append(RelationToDocument(annotated_type=concrete_type))
+
+    if isclass(annotation) and issubclass(annotation, Entity):
+        for concrete_type in get_concrete_types(annotation):
+            relation_options.append(RelationToEntity(annotated_type=concrete_type))
+
+    return set(relation_options)
+
+
 def build_relatable_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> RelationFieldDefinition:
-    if (
-        is_relatable(field_info.annotation)
-        and not is_union_of_relatable(field_info.annotation)
-        and not is_via_edge(field_info.annotation)
-    ):
+
+    if is_list_relatable(field_info.annotation):
+        if TYPE_CHECKING:
+            assert field_info.annotation
+
+        # If wrapped in a list, unwrap the list type
+        annotation = get_args(field_info.annotation)[0]
+        model.depends_on_classes.add(annotation)
+
         return RelationFieldDefinition(
             field_name=field_name,
             field_on_model=model,
             annotated_type=field_info.annotation,
-            type_options=[],
+            type_options=build_relation_options(annotation),
             overrides_parent_fields=[],
             reverse_name=f"{field_name}_reverse",
+            wrapper=list,
         )
 
     else:
-        return RelationFieldDefinition()
+        if TYPE_CHECKING:
+            assert is_relatable(field_info.annotation)
+            assert is_single_relatable(field_info.annotation)
+
+        model.depends_on_classes.add(field_info.annotation)
+        return RelationFieldDefinition(
+            field_name=field_name,
+            field_on_model=model,
+            annotated_type=field_info.annotation,
+            type_options=build_relation_options(field_info.annotation),
+            overrides_parent_fields=[],
+            reverse_name=f"{field_name}_reverse",
+            wrapper=None,
+        )
 
 
 def initialise_field_definitions(model: type[_DeclaredClass]):
-    print("=========")
-    print("initialising fields on ", model.__name__)
+
+    # TODO: REMOVE THIS HOOK WHEN ALL MODELS HAVE A META CLASS!!
+    if not hasattr(model, "_meta"):
+        return
 
     for field_name, field_info in model.model_fields.items():
-        print("---------", field_name)
-        """ if is_relatable(field_info.annotation) or is_list_relatable(
+        if is_relatable(field_info.annotation) or is_list_relatable(
             field_info.annotation
         ):
             model._meta.field_definitions.add_field(
@@ -190,7 +244,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 field_definition=build_relatable_field_definition(
                     field_name, field_info, model
                 ),
-            ) """
+            )
 
         if is_list_of_literal(field_info.annotation):
             model._meta.field_definitions.add_field(
@@ -201,8 +255,6 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             )
 
         elif is_literal(field_info.annotation):
-            print("is literal")
-            print(field_name)
             model._meta.field_definitions.add_field(
                 field_name,
                 LiteralFieldDefinition(
