@@ -609,3 +609,6 @@ def test_relation_via_reified():
 
     class Puppy(Dog):
         pass
+
+    statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
+    assert statement_concerns_dog_field
