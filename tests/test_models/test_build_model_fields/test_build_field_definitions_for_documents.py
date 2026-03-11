@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from types import UnionType
-from typing import Annotated, get_args, get_origin
+from typing import Annotated, TypeVar, get_args, get_origin
 
 import pytest
 from annotated_types import MaxLen
@@ -12,6 +12,7 @@ from pangloss.model_setup.field_definitions import (
     RelationFieldDefinition,
     RelationToDocument,
     RelationToEntity,
+    RelationToTypeVar,
 )
 from pangloss.model_setup.initialise_field_definitions import (
     is_list_of_literal,
@@ -22,8 +23,9 @@ from pangloss.model_setup.initialise_field_definitions import (
 from pangloss.model_setup.model_bases.configs import EntityFieldConfig, RelationConfig
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
-from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import ViaEdge
+from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 
 
 def test_meta_fields():
@@ -386,6 +388,25 @@ def test_build_relation_field_definition_with_list_union():
     )
 
 
+def test_build_relation_field_with_self_reference():
+    class Act(Document):
+        pass
+
+    class Order(Document):
+        thing_ordered: Act | Order
+
+    order_thing_ordered_field = Order._meta.fields["thing_ordered"]
+    assert order_thing_ordered_field
+    assert order_thing_ordered_field.annotated_type == Act | Order
+    assert isinstance(order_thing_ordered_field, RelationFieldDefinition)
+    assert order_thing_ordered_field.type_options == set(
+        [
+            RelationToDocument(annotated_type=Act),
+            RelationToDocument(annotated_type=Order),
+        ]
+    )
+
+
 def test_build_relation_field_definition_with_annotation():
     class Dog(Entity):
         pass
@@ -475,8 +496,6 @@ def test_edge_model_does_not_have_invalid_fields():
 
 
 def test_build_field_for_edge_model():
-    class Dog(Entity):
-        pass
 
     class EdgeToDog(EdgeModel):
         when: str
@@ -487,3 +506,106 @@ def test_build_field_for_edge_model():
     assert edge_to_dog_when_field.field_on_model is EdgeToDog
     assert edge_to_dog_when_field.annotated_type is str
     assert edge_to_dog_when_field.field_name == "when"
+
+
+def test_relation_via_edge_model():
+    class Dog(Entity):
+        pass
+
+    class EdgeToDog(EdgeModel):
+        when: str
+
+    class Statement(Document):
+        concerns_dog: ViaEdge[Dog, EdgeToDog]
+
+    statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
+    assert statement_concerns_dog_field
+    assert isinstance(statement_concerns_dog_field, RelationFieldDefinition)
+    assert statement_concerns_dog_field.type_options == set(
+        [RelationToEntity(annotated_type=Dog, edge_model=EdgeToDog)]
+    )
+
+
+def test_relation_via_edge_model_to_union():
+    class Animal(Entity):
+        _meta = EntityMeta(abstract=True)
+
+    class Dog(Animal):
+        pass
+
+    class Puppy(Dog):
+        pass
+
+    class Cat(Animal):
+        pass
+
+    class Biscuit(Entity):
+        pass
+
+    class EdgeToAnimal(EdgeModel):
+        when: str
+
+    class Statement(Document):
+        concerns_thing: Annotated[
+            list[Biscuit | ViaEdge[Animal, EdgeToAnimal]],
+            RelationConfig(reverse_name="is concerned in"),
+        ]
+
+    statement_concerns_thing_field = Statement._meta.fields["concerns_thing"]
+    assert statement_concerns_thing_field
+    assert isinstance(statement_concerns_thing_field, RelationFieldDefinition)
+    assert statement_concerns_thing_field.field_name == "concerns_thing"
+    assert statement_concerns_thing_field.field_on_model is Statement
+    assert (
+        statement_concerns_thing_field.annotated_type
+        == list[Biscuit | ViaEdge[Animal, EdgeToAnimal]]
+    )
+    assert statement_concerns_thing_field.type_options == set(
+        [
+            RelationToEntity(annotated_type=Biscuit),
+            RelationToEntity(annotated_type=Dog, edge_model=EdgeToAnimal),
+            RelationToEntity(annotated_type=Puppy, edge_model=EdgeToAnimal),
+            RelationToEntity(annotated_type=Cat, edge_model=EdgeToAnimal),
+        ]
+    )
+
+
+def test_build_meta_fields_for_reified_relation():
+    """ReifiedRelation should be initialised with RelationToTypeVar as their object"""
+
+    class Identification[Target](ReifiedRelation[Target]):
+        target: list[Target]
+
+    assert Identification._meta
+    identification_target_field = Identification._meta.fields["target"]
+    assert isinstance(identification_target_field, RelationFieldDefinition)
+    assert identification_target_field.field_name == "target"
+    assert identification_target_field.field_on_model is Identification
+    assert get_origin(identification_target_field.annotated_type) is list
+    typevar_arg = get_args(identification_target_field.annotated_type)[0]
+    assert isinstance(typevar_arg, TypeVar)
+    assert typevar_arg.__name__ == "Target"
+
+    target_param = Identification.__pydantic_generic_metadata__["parameters"][0]
+    assert identification_target_field.type_options == set(
+        [RelationToTypeVar(annotated_type=target_param, type_var_name="Target")]
+    )
+
+
+def test_relation_via_reified():
+    """Test ReifiedRelation field works
+
+    Note gratuitously out-of-order declarations!
+    """
+
+    class Statement(Document):
+        concerns_dog: Identification[Dog]
+
+    class Dog(Entity):
+        pass
+
+    class Identification[Target](ReifiedRelation[Target]):
+        target: list[Target]
+
+    class Puppy(Dog):
+        pass

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from annotated_types import BaseMetadata
 from pydantic.fields import FieldInfo
@@ -61,7 +61,7 @@ type TRelationFieldDefinitionAnnotation = (
 
 @dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):
-    annotated_type: TRelationFieldDefinitionAnnotation
+    annotated_type: TRelationFieldDefinitionAnnotation  # pyright: ignore[reportIncompatibleVariableOverride]
     type_options: set[RelationOption] = dataclass_field(default_factory=set)
     reverse_name: str
     overrides_parent_fields: list[str]
@@ -81,27 +81,33 @@ class RelationToDocument(RelationOption):
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToEntity(RelationOption):
-    annotated_type: type["Entity"]
+    annotated_type: type[Entity]
 
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToSemanticspace(RelationOption):
-    annotated_type: type["SemanticSpace"]
+    annotated_type: type[SemanticSpace]
 
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToConjunction(RelationOption):
-    annotated_type: type["Conjunction"]
+    annotated_type: type[Conjunction]
 
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToReifiedRelation(RelationOption):
-    annotated_type: type["ReifiedRelation"]
+    annotated_type: type[ReifiedRelation]
 
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToReifiedRelationDocument(RelationOption):
-    annotated_type: type["ReifiedRelationDocument"]
+    annotated_type: type[ReifiedRelationDocument]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RelationToTypeVar(RelationOption):
+    type_var_name: str
+    annotated_type: TypeVar  # pyright: ignore[reportIncompatibleVariableOverride]
 
 
 @dataclass
@@ -109,5 +115,4 @@ class ModelFields:
     fields: dict[str, FieldDefinition] = dataclass_field(default_factory=dict)
 
     def add_field(self, name: str, field_definition: FieldDefinition):
-
         self.fields[name] = field_definition

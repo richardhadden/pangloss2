@@ -11,6 +11,9 @@ class FulFils[T]:
 
 
 class ViaEdge[Target, Model: EdgeModel](BaseModel):
+    """There is clearly a problem with this; in type checking, Model must be type[EdgeModel],
+    but genericlaly subclassing with real EdgeModel subclass goes all wrong"""
+
     pass
 
 

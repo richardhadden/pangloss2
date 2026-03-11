@@ -6,12 +6,10 @@ from pangloss.models import (
     NonHeritableTrait,
     ReifiedRelation,
     ReifiedRelationDocument,
-    SubDocument,
 )
 
 type ModelTypes = (
     Document
-    | SubDocument
     | Entity
     | HeritableTrait
     | NonHeritableTrait

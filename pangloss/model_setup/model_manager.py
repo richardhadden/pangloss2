@@ -230,6 +230,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
     @classmethod
     def register_reified_relation(cls, model: type[ReifiedRelation]):
+        print("Registering", model)
 
         generic_metadata = model.__pydantic_generic_metadata__
 
@@ -282,6 +283,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         # dependencies have also been declared; otherwise, wait for more models
         # to be declared
         for model in cls.all_models().values():
+            print(model.__name__)
             if not model.__pydantic_complete__:
                 try:
                     model.model_rebuild(_types_namespace=cls.all_models())

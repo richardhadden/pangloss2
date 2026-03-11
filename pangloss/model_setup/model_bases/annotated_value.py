@@ -3,6 +3,8 @@ from pangloss.model_setup.model_bases.base_types import BaseTypes
 
 
 class AnnotatedValue[T: type[BaseTypes]](_BaseObject):
+    """Allows additional literal fields to be bound to a value"""
+
     value: T
 
     @classmethod
