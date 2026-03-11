@@ -14,3 +14,6 @@ letter sent to = PersonB,LocationB
 - Declare these as tuples
 - Create multiple PersonInLocation nodes, pointing via a `fulfilled_by` edge, and return
 the target of this edge during query
+
+
+# Can we add `PersonInLocation` to individual persons?
