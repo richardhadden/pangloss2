@@ -17,6 +17,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToEntity,
     TRelationFieldDefinitionAnnotation,
 )
+from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
@@ -190,9 +191,25 @@ def build_relation_options(
     return set(relation_options)
 
 
+def extract_relation_config(field_info: FieldInfo) -> RelationConfig | None:
+    if not field_info.metadata:
+        return None
+    for metadata_object in field_info.metadata:
+        if isinstance(metadata_object, RelationConfig):
+            return metadata_object
+
+
 def build_relatable_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> RelationFieldDefinition:
+
+    relation_config = extract_relation_config(field_info)
+
+    reverse_name = (
+        relation_config.reverse_name
+        if relation_config and relation_config.reverse_name
+        else f"{field_name}_reverse"
+    )
 
     if is_list_relatable(field_info.annotation):
         if TYPE_CHECKING:
@@ -208,7 +225,7 @@ def build_relatable_field_definition(
             annotated_type=field_info.annotation,
             type_options=build_relation_options(annotation),
             overrides_parent_fields=[],
-            reverse_name=f"{field_name}_reverse",
+            reverse_name=reverse_name,
             wrapper=list,
         )
 
@@ -218,13 +235,14 @@ def build_relatable_field_definition(
             assert is_single_relatable(field_info.annotation)
 
         model.depends_on_classes.add(field_info.annotation)
+
         return RelationFieldDefinition(
             field_name=field_name,
             field_on_model=model,
             annotated_type=field_info.annotation,
             type_options=build_relation_options(field_info.annotation),
             overrides_parent_fields=[],
-            reverse_name=f"{field_name}_reverse",
+            reverse_name=reverse_name,
             wrapper=None,
         )
 

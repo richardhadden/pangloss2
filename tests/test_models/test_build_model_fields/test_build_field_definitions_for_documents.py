@@ -8,6 +8,7 @@ from pangloss.model_setup.field_definitions import (
     ListFieldDefinition,
     LiteralFieldDefinition,
     RelationFieldDefinition,
+    RelationToDocument,
     RelationToEntity,
 )
 from pangloss.model_setup.initialise_field_definitions import (
@@ -374,3 +375,86 @@ def test_build_relation_field_definition_with_list_union():
     )
     assert statement_concerns_dog_cat_field.field_name == "concerns_dog_cat_list"
     assert statement_concerns_dog_cat_field.field_on_model is Statement
+    assert statement_concerns_dog_cat_field.type_options == set(
+        [
+            RelationToEntity(annotated_type=Dog),
+            RelationToEntity(annotated_type=Puppy),
+            RelationToEntity(annotated_type=Cat),
+        ]
+    )
+
+
+def test_build_relation_field_definition_with_annotation():
+    class Dog(Entity):
+        pass
+
+    class Puppy(Entity):
+        pass
+
+    class Statement(Document):
+        concerns_dog_annotated: Annotated[
+            Dog,
+            RelationConfig(reverse_name="is_concerned_in"),
+        ]
+
+    statement_concerns_dog_annotated_field = Statement._meta.fields[
+        "concerns_dog_annotated"
+    ]
+    assert statement_concerns_dog_annotated_field
+    assert isinstance(statement_concerns_dog_annotated_field, RelationFieldDefinition)
+    assert statement_concerns_dog_annotated_field.field_name == "concerns_dog_annotated"
+    assert statement_concerns_dog_annotated_field.field_on_model is Statement
+    assert statement_concerns_dog_annotated_field.reverse_name == "is_concerned_in"
+    assert statement_concerns_dog_annotated_field.annotated_type is Dog
+    assert statement_concerns_dog_annotated_field.type_options == set(
+        [RelationToEntity(annotated_type=Dog)]
+    )
+    assert statement_concerns_dog_annotated_field.wrapper is None
+
+
+def test_build_relation_field_definition_with_annotation_list():
+    class Dog(Entity):
+        pass
+
+    class Puppy(Entity):
+        pass
+
+    class Statement(Document):
+        concerns_dog_annotated: Annotated[
+            list[Dog],
+            RelationConfig(reverse_name="is_concerned_in"),
+        ]
+
+    statement_concerns_dog_annotated_field = Statement._meta.fields[
+        "concerns_dog_annotated"
+    ]
+    assert statement_concerns_dog_annotated_field
+    assert isinstance(statement_concerns_dog_annotated_field, RelationFieldDefinition)
+    assert statement_concerns_dog_annotated_field.field_name == "concerns_dog_annotated"
+    assert statement_concerns_dog_annotated_field.field_on_model is Statement
+    assert statement_concerns_dog_annotated_field.reverse_name == "is_concerned_in"
+    assert get_origin(statement_concerns_dog_annotated_field.annotated_type) is list
+    assert get_args(statement_concerns_dog_annotated_field.annotated_type)[0] is Dog
+    assert statement_concerns_dog_annotated_field.type_options == set(
+        [RelationToEntity(annotated_type=Dog)]
+    )
+
+
+def test_build_relation_field_with_relation_to_document():
+    class Statement(Document):
+        action_carried_out: Annotated[
+            Action,
+            RelationConfig(reverse_name="was carried out in"),
+        ]
+
+    class Action(Document):
+        pass
+
+    statement_action_carried_out_field = Statement._meta.fields["action_carried_out"]
+    assert statement_action_carried_out_field
+    assert isinstance(statement_action_carried_out_field, RelationFieldDefinition)
+    assert statement_action_carried_out_field.field_name == "action_carried_out"
+    assert statement_action_carried_out_field.reverse_name == "was_carried_out_in"
+    assert statement_action_carried_out_field.type_options == set(
+        [RelationToDocument(annotated_type=Action)]
+    )
