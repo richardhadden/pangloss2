@@ -2,8 +2,10 @@ from datetime import date, datetime
 from types import UnionType
 from typing import Annotated, get_args, get_origin
 
+import pytest
 from annotated_types import MaxLen
 
+from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
     ListFieldDefinition,
     LiteralFieldDefinition,
@@ -458,3 +460,30 @@ def test_build_relation_field_with_relation_to_document():
     assert statement_action_carried_out_field.type_options == set(
         [RelationToDocument(annotated_type=Action)]
     )
+
+
+def test_edge_model_does_not_have_invalid_fields():
+    """EdgeModels only support literals or lists"""
+
+    class Dog(Entity):
+        pass
+
+    with pytest.raises(PanglossModelError):
+
+        class EdgeToDog(EdgeModel):
+            dog: Dog
+
+
+def test_build_field_for_edge_model():
+    class Dog(Entity):
+        pass
+
+    class EdgeToDog(EdgeModel):
+        when: str
+        strategies: list[int]
+
+    edge_to_dog_when_field = EdgeToDog._meta.fields["when"]
+    assert isinstance(edge_to_dog_when_field, LiteralFieldDefinition)
+    assert edge_to_dog_when_field.field_on_model is EdgeToDog
+    assert edge_to_dog_when_field.annotated_type is str
+    assert edge_to_dog_when_field.field_name == "when"

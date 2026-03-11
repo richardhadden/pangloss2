@@ -8,11 +8,11 @@ from pydantic.fields import FieldInfo
 from pangloss.exceptions import PanglossInitialisationError
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.base_types import BaseTypes
-from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
 if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.conjunction import Conjunction
     from pangloss.model_setup.model_bases.document import Document
+    from pangloss.model_setup.model_bases.edge_model import EdgeModel
     from pangloss.model_setup.model_bases.entity import Entity
     from pangloss.model_setup.model_bases.reified_relation import (
         ReifiedRelation,

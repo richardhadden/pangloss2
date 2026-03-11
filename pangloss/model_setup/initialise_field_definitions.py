@@ -19,7 +19,6 @@ from pangloss.model_setup.field_definitions import (
 )
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.document import Document
-from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
@@ -27,6 +26,7 @@ from pangloss.model_setup.utils import get_concrete_types
 
 if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+    from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
 
 LITERAL_TYPES = {str, int, float, date, datetime}
@@ -77,7 +77,7 @@ def is_union_of_relatable(
 
 def is_via_edge(
     annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[ViaEdge[Document | Entity, EdgeModel]]]:
+) -> TypeIs[type[ViaEdge[Document | Entity, "EdgeModel"]]]:
     generic_metadata: PydanticGenericMetadata | None = getattr(
         annotation, "__pydantic_generic_metadata__", None
     )
@@ -248,10 +248,20 @@ def build_relatable_field_definition(
 
 
 def initialise_field_definitions(model: type[_DeclaredClass]):
+    from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
     # TODO: REMOVE THIS HOOK WHEN ALL MODELS HAVE A META CLASS!!
     if not hasattr(model, "_meta"):
         return
+
+    if issubclass(model, EdgeModel):
+        for field_name, field_info in model.model_fields.items():
+            if is_relatable(field_info.annotation) or is_list_relatable(
+                field_info.annotation
+            ):
+                raise PanglossModelError(
+                    f"EdgeModel {model.__name__} does not support relations ({model.__name__}.{field_name})"
+                )
 
     for field_name, field_info in model.model_fields.items():
         if is_relatable(field_info.annotation) or is_list_relatable(
