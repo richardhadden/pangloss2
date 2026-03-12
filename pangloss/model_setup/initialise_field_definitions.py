@@ -14,6 +14,7 @@ from typing import (
 )
 
 from annotated_types import BaseMetadata
+from frozendict import frozendict
 from pydantic._internal._generics import PydanticGenericMetadata
 from pydantic.fields import FieldInfo
 
@@ -21,25 +22,23 @@ from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
     ListFieldDefinition,
     LiteralFieldDefinition,
+    ParameterTypeOptions,
     RelationFieldDefinition,
     RelationOption,
     RelationToDocument,
     RelationToEntity,
+    RelationToReifiedRelation,
     RelationToTypeVar,
     TRelationFieldDefinitionAnnotation,
 )
+from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
-from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
 from pangloss.model_setup.utils import get_concrete_types
-
-if TYPE_CHECKING:
-    from pangloss.model_setup.model_bases.base_object import _DeclaredClass
-
 
 LITERAL_TYPES = {str, int, float, date, datetime}
 
@@ -129,9 +128,7 @@ def is_relatable(
     if is_via_edge(annotation):
         return True
 
-    if isclass(annotation) and issubclass(
-        annotation, (Document, Entity, HeritableTrait, NonHeritableTrait)
-    ):
+    if isclass(annotation) and issubclass(annotation, (_DeclaredClass)):
         return True
     return False
 
@@ -200,7 +197,12 @@ def build_list_field_definition(
         )
 
 
+def flatten(xss):
+    return [x for xs in xss for x in xs]
+
+
 def build_relation_options(
+    model: type[_DeclaredClass],
     annotation: TRelationFieldDefinitionAnnotation,
     edge_model: type[EdgeModel] | None = None,
 ) -> set[RelationOption]:
@@ -213,12 +215,50 @@ def build_relation_options(
         edge_model = edge_model
 
     origin = get_origin(annotation)
-
     if isclass(origin) and issubclass(origin, UnionType):
         for union_arg in get_args(annotation):
             relation_options.extend(
-                build_relation_options(union_arg, edge_model=edge_model)
+                build_relation_options(model, union_arg, edge_model=edge_model)
             )
+
+    if (
+        isclass(annotation)
+        and issubclass(annotation, _DeclaredClass)
+        and (origin := annotation.__pydantic_generic_metadata__["origin"])
+        and issubclass(origin, ReifiedRelation)
+    ):
+        type_args = annotation.__pydantic_generic_metadata__["args"]
+        parameters = origin.__pydantic_generic_metadata__["parameters"]
+        params_type_args = zip(parameters, type_args)
+        for t in type_args:
+            if (
+                isclass(t)
+                and issubclass(t, (_DeclaredClass))
+                and not is_parameterized_generic(t)
+            ):
+                model.depends_on_classes.add(t)
+
+        type_options = {
+            type_var.__name__: ParameterTypeOptions[type[origin]](
+                annotated_type=type_arg,
+                type_var=type_var,
+                type_var_name=type_var.__name__,
+                type_options=frozenset(
+                    build_relation_options(model, type_arg, edge_model=edge_model)
+                ),
+            )
+            for type_var, type_arg in params_type_args
+        }
+
+        print(list(params_type_args))
+        relation_options.append(
+            RelationToReifiedRelation(
+                annotated_type=annotation,
+                edge_model=edge_model,
+                reified_relation_type=origin,
+                parameter_type_options=frozendict(type_options),
+            )
+        )
 
     if isclass(annotation) and issubclass(annotation, Document):
         for concrete_type in get_concrete_types(annotation):
@@ -296,7 +336,7 @@ def build_relatable_field_definition(
             field_name=field_name,
             field_on_model=model,
             annotated_type=field_info.annotation,
-            type_options=build_relation_options(annotation),
+            type_options=build_relation_options(model, annotation),
             overrides_parent_fields=[],
             reverse_name=reverse_name,
             wrapper=list,
@@ -317,7 +357,7 @@ def build_relatable_field_definition(
             field_name=field_name,
             field_on_model=model,
             annotated_type=field_info.annotation,
-            type_options=build_relation_options(field_info.annotation),
+            type_options=build_relation_options(model, field_info.annotation),
             overrides_parent_fields=[],
             reverse_name=reverse_name,
             wrapper=None,
@@ -341,10 +381,14 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 )
 
     for field_name, field_info in model.model_fields.items():
+        print("-----------")
+        print(field_name, field_info.annotation)
+
         if issubclass(model, ReifiedRelation):
             if get_origin(field_info.annotation) and isinstance(
                 get_args(field_info.annotation)[0], TypeVar
             ):
+                print("is typevar")
                 model._meta.field_definitions.add_field(
                     name=field_name,
                     field_definition=build_relatable_field_definition(
@@ -355,6 +399,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
         if is_relatable(field_info.annotation) or is_list_relatable(
             field_info.annotation
         ):
+            print("is relatable")
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=build_relatable_field_definition(
@@ -363,6 +408,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             )
 
         if is_list_of_literal(field_info.annotation):
+            print("is list literal")
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=build_list_field_definition(
@@ -371,6 +417,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             )
 
         elif is_literal(field_info.annotation):
+            print("is literal")
             model._meta.field_definitions.add_field(
                 field_name,
                 LiteralFieldDefinition(
@@ -382,3 +429,5 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     ],
                 ),
             )
+
+        print(field_name)

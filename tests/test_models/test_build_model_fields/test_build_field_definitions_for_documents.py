@@ -9,9 +9,11 @@ from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
     ListFieldDefinition,
     LiteralFieldDefinition,
+    ParameterTypeOptions,
     RelationFieldDefinition,
     RelationToDocument,
     RelationToEntity,
+    RelationToReifiedRelation,
     RelationToTypeVar,
 )
 from pangloss.model_setup.initialise_field_definitions import (
@@ -19,6 +21,7 @@ from pangloss.model_setup.initialise_field_definitions import (
     is_list_relatable,
     is_literal,
     is_relatable,
+    is_single_relatable,
 )
 from pangloss.model_setup.model_bases.configs import EntityFieldConfig, RelationConfig
 from pangloss.model_setup.model_bases.document import Document
@@ -29,6 +32,7 @@ from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 
 
 def test_meta_fields():
+    """Ensure each model has distinct _meta and field definitions."""
 
     class Dog(Entity):
         name: str
@@ -81,6 +85,8 @@ def test_meta_fields():
 
 
 def test_is_literal():
+    """Verify that primitives and builtin types are treated as literals."""
+
     class Statement(Document):
         pass
 
@@ -95,6 +101,8 @@ def test_is_literal():
 
 
 def test_is_list_of_literal():
+    """Verify that only list[...] of literals are treated as literal lists."""
+
     class Statement(Document):
         pass
 
@@ -110,6 +118,8 @@ def test_is_list_of_literal():
 
 
 def test_field_definition_for_literal_field():
+    """Build field definitions for literal-typed fields on a Document."""
+
     class Statement(Document):
         string: Annotated[str, MaxLen(1)]
         integer: int
@@ -128,6 +138,8 @@ def test_field_definition_for_literal_field():
 
 
 def test_field_definition_for_list_field():
+    """Build field definitions for list-typed fields and validate nested validators."""
+
     class Statement(Document):
         items_simple: list[str]
         items_container_validators: Annotated[list[str], MaxLen(2)]
@@ -174,6 +186,8 @@ def test_field_definition_for_list_field():
 
 
 def test_is_relatable():
+    """Validate that various types are recognized as relatables for relation fields."""
+
     class ToDogEdge(EdgeModel):
         when: date
 
@@ -210,6 +224,7 @@ def test_is_relatable():
 
 
 def test_build_relation_field_definition_with_simple():
+    """Build a relation field to a single Entity and validate inferred options."""
 
     class Dog(Entity):
         name: str
@@ -246,9 +261,7 @@ def test_build_relation_field_definition_with_simple():
 
 
 def test_build_relation_field_definition_with_simple_out_of_order_declaration():
-    """Puppy is defined *after* Statement but should still be considered a subclass
-    of Dog, which was the only known thing at the point where Statement was
-    declared"""
+    """Ensure subclasses declared after a relation field are still discovered."""
 
     class Dog(Entity):
         name: str
@@ -285,6 +298,8 @@ def test_build_relation_field_definition_with_simple_out_of_order_declaration():
 
 
 def test_build_relation_field_definition_with_simple_list():
+    """Build a relation field for a list of Entities and confirm wrapper is list."""
+
     class Dog(Entity):
         name: str
 
@@ -321,6 +336,8 @@ def test_build_relation_field_definition_with_simple_list():
 
 
 def test_build_relation_field_definition_with_simple_union():
+    """Confirm union-typed relation fields produce multiple relation type options."""
+
     class Dog(Entity):
         name: str
 
@@ -352,6 +369,7 @@ def test_build_relation_field_definition_with_simple_union():
 
 
 def test_build_relation_field_definition_with_list_union():
+    """Verify list-of-union relation fields correctly preserve union typing."""
 
     class Statement(Document):
         concerns_dog_cat_list: list[Dog | Cat]
@@ -389,6 +407,8 @@ def test_build_relation_field_definition_with_list_union():
 
 
 def test_build_relation_field_with_self_reference():
+    """Ensure self-referential relation fields include both self and other types."""
+
     class Act(Document):
         pass
 
@@ -436,6 +456,8 @@ def test_build_relation_field_definition_with_annotation():
 
 
 def test_build_relation_field_definition_with_annotation_list():
+    """Ensure annotated list relations preserve wrapper and reverse name."""
+
     class Dog(Entity):
         pass
 
@@ -484,7 +506,7 @@ def test_build_relation_field_with_relation_to_document():
 
 
 def test_edge_model_does_not_have_invalid_fields():
-    """EdgeModels only support literals or lists"""
+    """Ensure EdgeModel fields reject non-literal types like Entity references."""
 
     class Dog(Entity):
         pass
@@ -509,6 +531,8 @@ def test_build_field_for_edge_model():
 
 
 def test_relation_via_edge_model():
+    """Verify via-edge relations are represented with edge model metadata."""
+
     class Dog(Entity):
         pass
 
@@ -527,6 +551,8 @@ def test_relation_via_edge_model():
 
 
 def test_relation_via_edge_model_to_union():
+    """Ensure via-edge relations in unions retain all possible entity/edge combos."""
+
     class Animal(Entity):
         _meta = EntityMeta(abstract=True)
 
@@ -571,7 +597,7 @@ def test_relation_via_edge_model_to_union():
 
 
 def test_build_meta_fields_for_reified_relation():
-    """ReifiedRelation should be initialised with RelationToTypeVar as their object"""
+    """Verify ReifiedRelation fields correctly use RelationToTypeVar for type vars."""
 
     class Identification[Target](ReifiedRelation[Target]):
         target: list[Target]
@@ -593,10 +619,7 @@ def test_build_meta_fields_for_reified_relation():
 
 
 def test_relation_via_reified():
-    """Test ReifiedRelation field works
-
-    Note gratuitously out-of-order declarations!
-    """
+    """Ensure relations via ReifiedRelation work, even with out-of-order declarations."""
 
     class Statement(Document):
         concerns_dog: Identification[Dog]
@@ -610,5 +633,48 @@ def test_relation_via_reified():
     class Puppy(Dog):
         pass
 
+    assert is_single_relatable(Identification[Dog])
+
     statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
     assert statement_concerns_dog_field
+    assert isinstance(statement_concerns_dog_field, RelationFieldDefinition)
+    assert statement_concerns_dog_field.field_name == "concerns_dog"
+    assert statement_concerns_dog_field.field_on_model is Statement
+    assert statement_concerns_dog_field.annotated_type == Identification[Dog]
+    statement_concerns_dog_field_type_option = (
+        statement_concerns_dog_field.type_options.pop()
+    )
+    assert isinstance(
+        statement_concerns_dog_field_type_option, RelationToReifiedRelation
+    )
+    assert (
+        statement_concerns_dog_field_type_option.annotated_type == Identification[Dog]
+    )
+    assert (
+        statement_concerns_dog_field_type_option.reified_relation_type is Identification
+    )
+    statement_concerns_dog_field_type_option_paramter_type_options_target = (
+        statement_concerns_dog_field_type_option.parameter_type_options["Target"]
+    )
+    assert statement_concerns_dog_field_type_option_paramter_type_options_target
+    assert isinstance(
+        statement_concerns_dog_field_type_option_paramter_type_options_target,
+        ParameterTypeOptions,
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_target.type_var
+        is Identification.__pydantic_generic_metadata__["parameters"][0]
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_target.type_var_name
+        == "Target"
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_target.type_options
+        == frozenset(
+            [
+                RelationToEntity(annotated_type=Dog),
+                RelationToEntity(annotated_type=Puppy),
+            ]
+        )
+    )

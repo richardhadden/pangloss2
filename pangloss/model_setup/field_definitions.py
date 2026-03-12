@@ -3,6 +3,7 @@ from dataclasses import field as dataclass_field
 from typing import TYPE_CHECKING, TypeVar
 
 from annotated_types import BaseMetadata
+from frozendict import frozendict
 from pydantic.fields import FieldInfo
 
 from pangloss.exceptions import PanglossInitialisationError
@@ -94,9 +95,19 @@ class RelationToConjunction(RelationOption):
     annotated_type: type[Conjunction]
 
 
+@dataclass(frozen=True)
+class ParameterTypeOptions[T]:
+    annotated_type: TRelationFieldDefinitionAnnotation
+    type_var: TypeVar
+    type_var_name: str
+    type_options: frozenset[RelationOption] = dataclass_field(default_factory=frozenset)
+
+
 @dataclass(frozen=True, kw_only=True)
 class RelationToReifiedRelation(RelationOption):
-    annotated_type: type[ReifiedRelation]
+    annotated_type: TRelationFieldDefinitionAnnotation
+    reified_relation_type: type[ReifiedRelation]
+    parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
 @dataclass(frozen=True, kw_only=True)
