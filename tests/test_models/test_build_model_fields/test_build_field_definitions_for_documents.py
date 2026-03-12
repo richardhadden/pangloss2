@@ -678,3 +678,167 @@ def test_relation_via_reified():
             ]
         )
     )
+
+
+def test_relation_via_reified_with_two_params():
+    class Statement(Document):
+        concerns_dog: WithProxy[Dog, Cat]
+
+    class Dog(Entity):
+        pass
+
+    class WithProxy[Target, Proxy](ReifiedRelation[Target]):
+        target: list[Target]
+        proxy: list[Proxy]
+
+    class Puppy(Dog):
+        pass
+
+    class Cat(Entity):
+        pass
+
+    assert is_single_relatable(WithProxy[Dog, Cat])
+
+    statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
+    assert statement_concerns_dog_field
+    assert isinstance(statement_concerns_dog_field, RelationFieldDefinition)
+    assert statement_concerns_dog_field.field_name == "concerns_dog"
+    assert statement_concerns_dog_field.field_on_model is Statement
+    assert statement_concerns_dog_field.annotated_type == WithProxy[Dog, Cat]
+    statement_concerns_dog_field_type_option = (
+        statement_concerns_dog_field.type_options.pop()
+    )
+    assert isinstance(
+        statement_concerns_dog_field_type_option, RelationToReifiedRelation
+    )
+    assert (
+        statement_concerns_dog_field_type_option.annotated_type == WithProxy[Dog, Cat]
+    )
+    assert statement_concerns_dog_field_type_option.reified_relation_type is WithProxy
+    statement_concerns_dog_field_type_option_paramter_type_options_target = (
+        statement_concerns_dog_field_type_option.parameter_type_options["Target"]
+    )
+    assert statement_concerns_dog_field_type_option_paramter_type_options_target
+    assert isinstance(
+        statement_concerns_dog_field_type_option_paramter_type_options_target,
+        ParameterTypeOptions,
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_target.type_var
+        is WithProxy.__pydantic_generic_metadata__["parameters"][0]
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_target.type_var_name
+        == "Target"
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_target.type_options
+        == frozenset(
+            [
+                RelationToEntity(annotated_type=Dog),
+                RelationToEntity(annotated_type=Puppy),
+            ]
+        )
+    )
+
+    statement_concerns_dog_field_type_option_paramter_type_options_proxy = (
+        statement_concerns_dog_field_type_option.parameter_type_options["Proxy"]
+    )
+    assert statement_concerns_dog_field_type_option_paramter_type_options_proxy
+    assert isinstance(
+        statement_concerns_dog_field_type_option_paramter_type_options_proxy,
+        ParameterTypeOptions,
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_proxy.type_var
+        is WithProxy.__pydantic_generic_metadata__["parameters"][1]
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_proxy.type_var_name
+        == "Proxy"
+    )
+    assert (
+        statement_concerns_dog_field_type_option_paramter_type_options_proxy.type_options
+        == frozenset(
+            [
+                RelationToEntity(annotated_type=Cat),
+            ]
+        )
+    )
+
+
+def test_relation_via_double_reified():
+    class Dog(Entity):
+        pass
+
+    class WithProxy[Target, Proxy](ReifiedRelation[Target]):
+        target: list[Target]
+        proxy: list[Proxy]
+
+    class Statement(Document):
+        concerns_dog: WithProxy[Identification[Dog], Identification[Cat]]
+
+    class Puppy(Dog):
+        pass
+
+    class Cat(Entity):
+        pass
+
+    class Identification[Target](ReifiedRelation[Target]):
+        target: list[Target]
+
+    statement_concerns_dog_field = Statement._meta.fields["concerns_dog"]
+    assert statement_concerns_dog_field
+    assert isinstance(statement_concerns_dog_field, RelationFieldDefinition)
+    assert statement_concerns_dog_field.field_name == "concerns_dog"
+    assert statement_concerns_dog_field.field_on_model is Statement
+    assert (
+        statement_concerns_dog_field.annotated_type
+        == WithProxy[Identification[Dog], Identification[Cat]]
+    )
+
+    statement_concerns_dog_field_type_option = (
+        statement_concerns_dog_field.type_options.pop()
+    )
+    assert isinstance(
+        statement_concerns_dog_field_type_option, RelationToReifiedRelation
+    )
+    assert (
+        statement_concerns_dog_field_type_option.annotated_type
+        == WithProxy[Identification[Dog], Identification[Cat]]
+    )
+    assert statement_concerns_dog_field_type_option.reified_relation_type is WithProxy
+
+    target_param_opts = statement_concerns_dog_field_type_option.parameter_type_options[
+        "Target"
+    ]
+    assert isinstance(target_param_opts, ParameterTypeOptions)
+    assert target_param_opts.type_var_name == "Target"
+
+    target_type_option = next(iter(target_param_opts.type_options))
+    assert isinstance(target_type_option, RelationToReifiedRelation)
+    assert target_type_option.annotated_type == Identification[Dog]
+
+    inner_target_param = target_type_option.parameter_type_options["Target"]
+    assert isinstance(inner_target_param, ParameterTypeOptions)
+    assert inner_target_param.type_options == frozenset(
+        [
+            RelationToEntity(annotated_type=Dog),
+            RelationToEntity(annotated_type=Puppy),
+        ]
+    )
+
+    proxy_param_opts = statement_concerns_dog_field_type_option.parameter_type_options[
+        "Proxy"
+    ]
+    assert isinstance(proxy_param_opts, ParameterTypeOptions)
+    assert proxy_param_opts.type_var_name == "Proxy"
+
+    proxy_type_option = next(iter(proxy_param_opts.type_options))
+    assert isinstance(proxy_type_option, RelationToReifiedRelation)
+    assert proxy_type_option.annotated_type == Identification[Cat]
+
+    inner_proxy_param = proxy_type_option.parameter_type_options["Target"]
+    assert inner_proxy_param.type_options == frozenset(
+        [RelationToEntity(annotated_type=Cat)]
+    )

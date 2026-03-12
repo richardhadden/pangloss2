@@ -287,6 +287,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                     model.model_rebuild(_types_namespace=cls.all_models())
                 except PydanticUndefinedAnnotation:
                     pass
+                except RecursionError:
+                    pass
 
         # Check all models so far have no undeclared dependencies; otherwise, return
         if not all(model.__pydantic_complete__ for model in cls.all_models().values()):
