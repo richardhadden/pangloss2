@@ -7,6 +7,8 @@ from annotated_types import MaxLen
 
 from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
+    EmbeddedFieldDefinition,
+    EmbeddedOption,
     ListFieldDefinition,
     LiteralFieldDefinition,
     ParameterTypeOptions,
@@ -17,15 +19,18 @@ from pangloss.model_setup.field_definitions import (
     RelationToTypeVar,
 )
 from pangloss.model_setup.initialise_field_definitions import (
+    is_embedded,
     is_list_of_literal,
     is_list_relatable,
     is_literal,
     is_relatable,
     is_single_relatable,
+    is_union_of_embedded,
 )
 from pangloss.model_setup.model_bases.configs import EntityFieldConfig, RelationConfig
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
+from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
@@ -221,6 +226,23 @@ def test_is_relatable():
     assert is_list_relatable(list[Dog])
     assert is_list_relatable(list[Statement])
     assert is_list_relatable(list[Factoid])
+
+
+def test_is_embedded():
+    class Thing(Embedded):
+        pass
+
+    assert is_embedded(Thing)
+
+
+def test_is_union_embedded():
+    class Thing(Embedded):
+        pass
+
+    class Thong(Embedded):
+        pass
+
+    assert is_union_of_embedded(Thing | Thong)
 
 
 def test_build_relation_field_definition_with_simple():
@@ -841,4 +863,22 @@ def test_relation_via_double_reified():
     inner_proxy_param = proxy_type_option.parameter_type_options["Target"]
     assert inner_proxy_param.type_options == frozenset(
         [RelationToEntity(annotated_type=Cat)]
+    )
+
+
+def test_embedded_node():
+    class Statement(Document):
+        date: Date
+
+    class Date(Embedded):
+        when: datetime
+
+    statement_date_field = Statement._meta.fields["date"]
+    assert statement_date_field
+    assert isinstance(statement_date_field, EmbeddedFieldDefinition)
+    assert statement_date_field.annotated_type is Date
+    assert statement_date_field.field_name == "date"
+    assert statement_date_field.field_on_model is Statement
+    assert statement_date_field.type_options == set(
+        [EmbeddedOption(annotated_type=Date)]
     )

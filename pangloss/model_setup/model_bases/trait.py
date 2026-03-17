@@ -1,10 +1,12 @@
-from pydantic_meta_kit import BaseMeta
+from typing import Annotated
+
+from pydantic_meta_kit import BaseMeta, MetaRules
 
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 
 
 class TraitMeta(BaseMeta):
-    pass
+    abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
 
 
 class _Trait(_DeclaredClass):

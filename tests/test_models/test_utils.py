@@ -24,6 +24,9 @@ def test_get_concrete_types_simple():
     class Statement(Document):
         pass
 
+    class Other(Document):
+        pass
+
     class Action(Statement):
         pass
 
@@ -37,4 +40,9 @@ def test_get_concrete_types_simple():
 
     assert get_concrete_types(Statement, include_abstract=True) == set(
         [Statement, Action, CreationOfArtwork, CreationOfPainting]
+    )
+
+    # Throw in a union type here to check it works
+    assert get_concrete_types(Statement | Other) == set(
+        [Statement, Action, CreationOfPainting, Other]
     )

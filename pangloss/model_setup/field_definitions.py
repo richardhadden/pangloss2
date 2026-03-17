@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.conjunction import Conjunction
     from pangloss.model_setup.model_bases.document import Document
     from pangloss.model_setup.model_bases.edge_model import EdgeModel
+    from pangloss.model_setup.model_bases.embedded import Embedded
     from pangloss.model_setup.model_bases.entity import Entity
     from pangloss.model_setup.model_bases.reified_relation import (
         ReifiedRelation,
@@ -58,6 +59,17 @@ type TRelationFieldDefinitionAnnotation = (
     type[_DeclaredClass | BaseTypes | list]
     | type[list[type[_DeclaredClass | BaseTypes | list]]]
 )
+
+
+@dataclass(frozen=True, kw_only=True)
+class EmbeddedFieldDefinition(FieldDefinition):
+    annotated_type: type[Embedded] | type[Embedded | Embedded]
+    type_options: set[EmbeddedOption]
+
+
+@dataclass(frozen=True, kw_only=True)
+class EmbeddedOption:
+    annotated_type: type[Embedded]
 
 
 @dataclass(frozen=True, kw_only=True)

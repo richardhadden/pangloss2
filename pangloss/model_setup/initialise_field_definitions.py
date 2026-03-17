@@ -20,6 +20,8 @@ from pydantic.fields import FieldInfo
 
 from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
+    EmbeddedFieldDefinition,
+    EmbeddedOption,
     ListFieldDefinition,
     LiteralFieldDefinition,
     ParameterTypeOptions,
@@ -35,6 +37,7 @@ from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
+from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
@@ -74,6 +77,21 @@ def is_list_of_literal(
         if not inner_type_args:
             return False
         if is_literal(inner_type_args[0]):
+            return True
+    return False
+
+
+def is_embedded(annotation: type[Any] | UnionType | None) -> TypeIs[type[Embedded]]:
+    if isclass(annotation) and issubclass(annotation, Embedded):
+        return True
+    return False
+
+
+def is_union_of_embedded(
+    annotation: type[Any] | None | UnionType,
+) -> TypeIs[type[Embedded | Embedded]]:
+    if isinstance(annotation, UnionType):
+        if all(is_embedded(arg) for arg in get_args(annotation)):
             return True
     return False
 
@@ -320,7 +338,7 @@ def build_relatable_field_definition(
             wrapper=list,
         )
 
-    if is_list_relatable(field_info.annotation):
+    elif is_list_relatable(field_info.annotation):
         if TYPE_CHECKING:
             assert field_info.annotation
 
@@ -364,6 +382,29 @@ def build_relatable_field_definition(
         )
 
 
+def build_embedded_field_definition(
+    field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
+) -> EmbeddedFieldDefinition:
+    if TYPE_CHECKING:
+        assert is_embedded(field_info.annotation) or is_union_of_embedded(
+            field_info.annotation
+        )
+
+    field_options: set[type[Embedded]] = get_concrete_types(field_info.annotation)
+    model.depends_on_classes.update(field_options)
+
+    return EmbeddedFieldDefinition(
+        field_name=field_name,
+        field_on_model=model,
+        annotated_type=cast(
+            type[Embedded] | type[Embedded | Embedded], field_info.annotation
+        ),
+        type_options=set(
+            EmbeddedOption(annotated_type=option) for option in field_options
+        ),
+    )
+
+
 def initialise_field_definitions(model: type[_DeclaredClass]):
     from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
@@ -381,14 +422,10 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 )
 
     for field_name, field_info in model.model_fields.items():
-        print("-----------")
-        print(field_name, field_info.annotation)
-
         if issubclass(model, ReifiedRelation):
             if get_origin(field_info.annotation) and isinstance(
                 get_args(field_info.annotation)[0], TypeVar
             ):
-                print("is typevar")
                 model._meta.field_definitions.add_field(
                     name=field_name,
                     field_definition=build_relatable_field_definition(
@@ -396,10 +433,19 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     ),
                 )
 
-        if is_relatable(field_info.annotation) or is_list_relatable(
+        if is_embedded(field_info.annotation) or is_union_of_embedded(
             field_info.annotation
         ):
-            print("is relatable")
+            model._meta.field_definitions.add_field(
+                name=field_name,
+                field_definition=build_embedded_field_definition(
+                    field_name, field_info, model
+                ),
+            )
+
+        elif is_relatable(field_info.annotation) or is_list_relatable(
+            field_info.annotation
+        ):
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=build_relatable_field_definition(
@@ -407,8 +453,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 ),
             )
 
-        if is_list_of_literal(field_info.annotation):
-            print("is list literal")
+        elif is_list_of_literal(field_info.annotation):
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=build_list_field_definition(
@@ -417,7 +462,6 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             )
 
         elif is_literal(field_info.annotation):
-            print("is literal")
             model._meta.field_definitions.add_field(
                 field_name,
                 LiteralFieldDefinition(
@@ -429,5 +473,3 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     ],
                 ),
             )
-
-        print(field_name)
