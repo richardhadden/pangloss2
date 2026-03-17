@@ -30,7 +30,7 @@ from pangloss.model_setup.initialise_field_definitions import (
 from pangloss.model_setup.model_bases.configs import EntityFieldConfig, RelationConfig
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
-from pangloss.model_setup.model_bases.embedded import Embedded
+from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
 from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
@@ -867,11 +867,15 @@ def test_relation_via_double_reified():
 
 
 def test_embedded_node():
+    class Date(Embedded):
+        _meta = EmbeddedMeta(abstract=True)
+        when: datetime
+
     class Statement(Document):
         date: Date
 
-    class Date(Embedded):
-        when: datetime
+    class SpecialDate(Date):
+        pass
 
     statement_date_field = Statement._meta.fields["date"]
     assert statement_date_field
@@ -880,5 +884,7 @@ def test_embedded_node():
     assert statement_date_field.field_name == "date"
     assert statement_date_field.field_on_model is Statement
     assert statement_date_field.type_options == set(
-        [EmbeddedOption(annotated_type=Date)]
+        [
+            EmbeddedOption(annotated_type=SpecialDate),
+        ]
     )

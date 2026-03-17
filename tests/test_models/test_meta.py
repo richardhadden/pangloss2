@@ -1,4 +1,7 @@
+import datetime
+
 from pangloss.model_setup.model_bases.document import Document, DocumentMeta
+from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
 
 
 def test_meta_inheritance_of_abstract():
@@ -19,3 +22,18 @@ def test_meta_inheritance_of_abstract():
     assert CreationOfArtwork._meta._owner_class is CreationOfArtwork
     assert CreationOfArtwork._meta.abstract is True
     assert CreationOfPainting._meta.abstract is False
+
+
+def test_meta_inheritance_of_abstract_on_embedded():
+    class Date(Embedded):
+        _meta = EmbeddedMeta(abstract=True)
+        when: datetime.datetime
+
+    class Statement(Document):
+        date: Date
+
+    class SpecialDate(Date):
+        pass
+
+    assert Date._meta.abstract is True
+    assert SpecialDate._meta.abstract is False

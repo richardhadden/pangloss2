@@ -390,8 +390,12 @@ def build_embedded_field_definition(
             field_info.annotation
         )
 
+    print(field_info.annotation)
+
     field_options: set[type[Embedded]] = get_concrete_types(field_info.annotation)
-    model.depends_on_classes.update(field_options)
+    print(field_options)
+    if isclass(field_info.annotation):
+        model.depends_on_classes.add(field_info.annotation)
 
     return EmbeddedFieldDefinition(
         field_name=field_name,

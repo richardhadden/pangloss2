@@ -1,7 +1,7 @@
 from typing import Annotated, ClassVar
 
 from pydantic import Field
-from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules
+from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
 from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
 from pangloss.model_setup.model_bases.base_object import (
@@ -20,7 +20,7 @@ class EmbeddedMeta(BaseMeta, DeclaredClassMeta):
         return self.field_definitions.fields
 
 
-class Embedded(_DeclaredClass):
+class Embedded(_DeclaredClass, WithMeta[EmbeddedMeta]):
     _meta: ClassVar[EmbeddedMeta] = EmbeddedMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     @classmethod
