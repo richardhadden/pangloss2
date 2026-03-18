@@ -106,7 +106,9 @@ class RelationToSemanticSpace(RelationOption):
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToConjunction(RelationOption):
-    annotated_type: type[Conjunction]
+    annotated_type: TRelationFieldDefinitionAnnotation
+    conjunction_type: type[Conjunction]
+    parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
 @dataclass(frozen=True)

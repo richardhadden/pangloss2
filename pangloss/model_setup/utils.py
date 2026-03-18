@@ -3,6 +3,7 @@ from types import UnionType
 from typing import Any, get_args, overload
 
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
@@ -47,6 +48,12 @@ def get_concrete_types(
 
 @overload
 def get_concrete_types(
+    model: type[Conjunction], include_abstract: bool = False
+) -> set[type[Conjunction]]: ...
+
+
+@overload
+def get_concrete_types(
     model: type[HeritableTrait | NonHeritableTrait],
     include_abstract: bool = False,
 ) -> set[type[Document]] | set[type[Entity]]: ...
@@ -78,7 +85,7 @@ def get_concrete_types(
             )
 
     if isclass(model) and issubclass(
-        model, (Document, Entity, Embedded, SemanticSpace)
+        model, (Document, Entity, Embedded, SemanticSpace, Conjunction)
     ):
         if not model._meta.abstract or include_abstract:
             concrete_types.append(model)
@@ -88,9 +95,9 @@ def get_concrete_types(
     return set(concrete_types)
 
 
-def generic_get_subclasses[T: Document | Entity | Embedded | SemanticSpace](
-    model: type[T], include_abstract: bool = False
-) -> set[type[T]]:
+def generic_get_subclasses[
+    T: Document | Entity | Embedded | SemanticSpace | Conjunction
+](model: type[T], include_abstract: bool = False) -> set[type[T]]:
     """Recursively find subclasses of a Document or Entity model.
 
     Traverses the subclass tree and returns all reachable subclasses, optionally

@@ -27,6 +27,7 @@ from pangloss.model_setup.field_definitions import (
     ParameterTypeOptions,
     RelationFieldDefinition,
     RelationOption,
+    RelationToConjunction,
     RelationToDocument,
     RelationToEntity,
     RelationToReifiedRelation,
@@ -291,6 +292,17 @@ def build_relation_options(
                         annotated_type=annotation,
                         edge_model=edge_model,
                         semantic_space_type=concrete_semantic_space,
+                        parameter_type_options=frozendict(type_options),
+                    )
+                )
+        if issubclass(origin, Conjunction):
+            model.depends_on_classes.add(origin)
+            for concrete_conjunction in get_concrete_types(origin):
+                relation_options.append(
+                    RelationToConjunction(
+                        annotated_type=annotation,
+                        edge_model=edge_model,
+                        conjunction_type=concrete_conjunction,
                         parameter_type_options=frozendict(type_options),
                     )
                 )

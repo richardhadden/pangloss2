@@ -13,6 +13,7 @@ from pangloss.model_setup.field_definitions import (
     LiteralFieldDefinition,
     ParameterTypeOptions,
     RelationFieldDefinition,
+    RelationToConjunction,
     RelationToDocument,
     RelationToEntity,
     RelationToReifiedRelation,
@@ -1123,3 +1124,110 @@ def test_conjunction_fields():
     assert type_option.annotated_type.__name__ == "T"
     assert type_option.edge_model is None
     assert type_option.type_var_name == "T"
+
+
+def test_conjunction_fields_with_two_list_fields():
+    class Causes[Cause, Result](Conjunction):
+        cause: list[Cause]
+        result: list[Result]
+
+    assert Causes._meta.fields
+
+    cause_field = Causes._meta.fields["cause"]
+    assert isinstance(cause_field, RelationFieldDefinition)
+    assert cause_field.field_name == "cause"
+    assert cause_field.field_on_model is Causes
+    assert get_origin(cause_field.annotated_type) is list
+    cause_inner = get_args(cause_field.annotated_type)[0]
+    assert isinstance(cause_inner, TypeVar)
+    assert cause_inner.__name__ == "Cause"
+    assert cause_field.wrapper is list
+
+    cause_option = next(iter(cause_field.type_options))
+    assert isinstance(cause_option, RelationToTypeVar)
+    assert cause_option.type_var_name == "Cause"
+    assert isinstance(cause_option.annotated_type, TypeVar)
+    assert cause_option.annotated_type.__name__ == "Cause"
+
+    result_field = Causes._meta.fields["result"]
+    assert isinstance(result_field, RelationFieldDefinition)
+    assert result_field.field_name == "result"
+    assert result_field.field_on_model is Causes
+    assert get_origin(result_field.annotated_type) is list
+    result_inner = get_args(result_field.annotated_type)[0]
+    assert isinstance(result_inner, TypeVar)
+    assert result_inner.__name__ == "Result"
+    assert result_field.wrapper is list
+
+    result_option = next(iter(result_field.type_options))
+    assert isinstance(result_option, RelationToTypeVar)
+    assert result_option.type_var_name == "Result"
+    assert isinstance(result_option.annotated_type, TypeVar)
+    assert result_option.annotated_type.__name__ == "Result"
+
+
+def test_relation_to_conjunction():
+    class Statement(Document):
+        action: Causes[Task, Incident]
+
+    class Task(Document):
+        pass
+
+    class Incident(Document):
+        pass
+
+    class Causes[Cause, Result](Conjunction):
+        cause: list[Cause]
+        result: list[Result]
+
+    class ReallyCauses(Causes):
+        pass
+
+    statement_action_field = Statement._meta.fields["action"]
+    assert statement_action_field
+    assert isinstance(statement_action_field, RelationFieldDefinition)
+    assert statement_action_field.field_name == "action"
+    assert statement_action_field.field_on_model is Statement
+    assert statement_action_field.annotated_type == Causes[Task, Incident]
+    assert len(statement_action_field.type_options) == 2
+
+    statement_action_field_type_options = statement_action_field.type_options
+
+    type_option_0 = [
+        t
+        for t in statement_action_field_type_options
+        if isinstance(t, RelationToConjunction) and t.conjunction_type is Causes
+    ][0]
+    assert isinstance(type_option_0, RelationToConjunction)
+    assert type_option_0.annotated_type == Causes[Task, Incident]
+    assert type_option_0.edge_model is None
+    assert type_option_0.conjunction_type is Causes
+    type_options_0_cause = type_option_0.parameter_type_options["Cause"]
+    assert type_options_0_cause.type_var_name == "Cause"
+    assert type_options_0_cause.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
+    )
+    type_options_0_result = type_option_0.parameter_type_options["Result"]
+    assert type_options_0_result.type_var_name == "Result"
+    assert type_options_0_result.type_options == frozenset(
+        [RelationToDocument(annotated_type=Incident)]
+    )
+
+    type_option_1 = [
+        t
+        for t in statement_action_field_type_options
+        if isinstance(t, RelationToConjunction) and t.conjunction_type is ReallyCauses
+    ][0]
+    assert type_option_1.annotated_type == Causes[Task, Incident]
+    assert type_option_1.edge_model is None
+    assert type_option_1.conjunction_type is ReallyCauses
+    type_options_1_cause = type_option_1.parameter_type_options["Cause"]
+    assert type_options_1_cause.type_var_name == "Cause"
+    assert type_options_1_cause.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
+    )
+    type_options_1_result = type_option_1.parameter_type_options["Result"]
+    assert type_options_1_result.type_var_name == "Result"
+    assert type_options_1_result.type_options == frozenset(
+        [RelationToDocument(annotated_type=Incident)]
+    )
