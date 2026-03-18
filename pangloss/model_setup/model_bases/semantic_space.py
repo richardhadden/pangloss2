@@ -1,12 +1,40 @@
+from typing import Annotated, ClassVar
+
+from pydantic import Field
+from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules
+
+from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
-from pangloss.model_setup.model_bases.document import Document
 
 
-class SemanticSpace[Contents: Document](_DeclaredClass):
+class SemanticSpaceMeta(BaseMeta):
+    _owner_class: type[SemanticSpace] | InheritValue = InheritValue.AS_DEFAULT
+    abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
+    field_definitions: ModelFields = Field(default_factory=ModelFields)
+
+    @property
+    def fields(self) -> dict[str, FieldDefinition]:
+        return self.field_definitions.fields
+
+
+class SemanticSpace[Contents](_DeclaredClass):
+    _meta: ClassVar[SemanticSpaceMeta] = SemanticSpaceMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
+
+    contents: Contents
+
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
         from pangloss.model_setup.model_manager import ModelManager
 
-        ModelManager.register_semantic_space(cls)
+        # Set model it uninitialised, as may inherit _initialised from parent class
+        cls._initialised = False
 
-    contents: Contents
+        # Make sure _meta class is new and not inherited
+        cls._meta = cls.__dict__.get("_meta", SemanticSpaceMeta())  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        # Set owner class on cls._meta
+        cls._meta._owner_class = cls
+
+        if cls.__pydantic_generic_metadata__["origin"] is None:
+            ModelManager.register_semantic_space(cls)
+        ModelManager.try_initialise_all_models(cls)

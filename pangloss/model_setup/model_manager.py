@@ -6,6 +6,7 @@ registered.
 """
 
 from collections import ChainMap
+from inspect import isclass
 from typing import TYPE_CHECKING, Any, no_type_check
 
 from pydantic import PydanticUndefinedAnnotation
@@ -311,6 +312,6 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         # the model fields for that class so that the subclass is taken into account
         for model in cls.all_models().values():
             for kls in model.depends_on_classes:
-                if issubclass(declared_class, kls):
+                if isclass(kls) and issubclass(declared_class, kls):
                     initialise_field_definitions(model)
                     break

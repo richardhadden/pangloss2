@@ -16,6 +16,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToDocument,
     RelationToEntity,
     RelationToReifiedRelation,
+    RelationToSemanticSpace,
     RelationToTypeVar,
 )
 from pangloss.model_setup.initialise_field_definitions import (
@@ -34,6 +35,7 @@ from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
 from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
+from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 
 
 def test_meta_fields():
@@ -226,6 +228,16 @@ def test_is_relatable():
     assert is_list_relatable(list[Dog])
     assert is_list_relatable(list[Statement])
     assert is_list_relatable(list[Factoid])
+
+
+def test_is_relatable_on_semantic_space():
+    class Negative[Content](SemanticSpace[Content]):
+        pass
+
+    class Statement(Document):
+        pass
+
+    assert is_relatable(Negative[Statement])
 
 
 def test_is_embedded():
@@ -649,11 +661,11 @@ def test_relation_via_reified():
     class Dog(Entity):
         pass
 
-    class Identification[Target](ReifiedRelation[Target]):
-        target: list[Target]
-
     class Puppy(Dog):
         pass
+
+    class Identification[Target](ReifiedRelation[Target]):
+        target: list[Target]
 
     assert is_single_relatable(Identification[Dog])
 
@@ -887,4 +899,66 @@ def test_embedded_node():
         [
             EmbeddedOption(annotated_type=SpecialDate),
         ]
+    )
+
+
+def test_semantic_space_fields():
+    class Negative[Contents](SemanticSpace[Contents]):
+        pass
+
+    class ReallyNegative[Contents](Negative[Contents]):
+        stuff: int
+
+    negative_contents_field = Negative._meta.fields["contents"]
+    assert negative_contents_field
+    assert isinstance(negative_contents_field, RelationFieldDefinition)
+    assert isinstance(negative_contents_field.annotated_type, TypeVar)
+    assert negative_contents_field.annotated_type.__name__ == "Contents"
+    assert negative_contents_field.field_name == "contents"
+    assert negative_contents_field.field_on_model is Negative
+
+    really_negative_contents_field = ReallyNegative._meta.fields["contents"]
+    assert really_negative_contents_field
+    assert isinstance(really_negative_contents_field, RelationFieldDefinition)
+    assert isinstance(really_negative_contents_field.annotated_type, TypeVar)
+    assert really_negative_contents_field.annotated_type.__name__ == "Contents"
+    assert really_negative_contents_field.field_name == "contents"
+    assert really_negative_contents_field.field_on_model is ReallyNegative
+
+    really_negative_stuff_field = ReallyNegative._meta.fields["stuff"]
+    assert isinstance(really_negative_stuff_field, LiteralFieldDefinition)
+
+
+def test_relation_to_semantic_space():
+    class Negative[Contents](SemanticSpace[Contents]):
+        pass
+
+    class Statement(Document):
+        action: Negative[Task]
+
+    class Task(Document):
+        pass
+
+    statement_action_field = Statement._meta.fields["action"]
+    assert statement_action_field
+    assert isinstance(statement_action_field, RelationFieldDefinition)
+    assert statement_action_field.field_name == "action"
+    assert statement_action_field.field_on_model is Statement
+    assert statement_action_field.annotated_type == Negative[Task]
+    assert len(statement_action_field.type_options) == 1
+
+    content_type_option = statement_action_field.type_options.pop()
+    assert isinstance(content_type_option, RelationToSemanticSpace)
+    assert content_type_option.annotated_type == Negative[Task]
+    assert content_type_option.edge_model is None
+    assert content_type_option.semantic_space_type is Negative
+
+    content_param_type_option = content_type_option.parameter_type_options["Contents"]
+    assert content_param_type_option
+    assert isinstance(content_param_type_option.type_var, TypeVar)
+    assert content_param_type_option.type_var.__name__ == "Contents"
+    assert content_param_type_option.type_var_name == "Contents"
+    assert len(content_param_type_option.type_options) == 1
+    assert content_param_type_option.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
     )

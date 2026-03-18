@@ -55,7 +55,7 @@ def test_register_models_with_model_manager():
     class Dating(Embedded):
         pass
 
-    class Negative(SemanticSpace):
+    class Negative[Content](SemanticSpace[Content]):
         pass
 
     class BecauseOfXThenY(Conjunction):

@@ -30,6 +30,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToDocument,
     RelationToEntity,
     RelationToReifiedRelation,
+    RelationToSemanticSpace,
     RelationToTypeVar,
     TRelationFieldDefinitionAnnotation,
 )
@@ -41,6 +42,7 @@ from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
+from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.utils import get_concrete_types
 
 LITERAL_TYPES = {str, int, float, date, datetime}
@@ -243,7 +245,8 @@ def build_relation_options(
         isclass(annotation)
         and issubclass(annotation, _DeclaredClass)
         and (origin := annotation.__pydantic_generic_metadata__["origin"])
-        and issubclass(origin, ReifiedRelation)
+        and isclass(origin)
+        and issubclass(origin, (ReifiedRelation, SemanticSpace))
     ):
         type_args = annotation.__pydantic_generic_metadata__["args"]
         parameters = origin.__pydantic_generic_metadata__["parameters"]
@@ -268,15 +271,24 @@ def build_relation_options(
             for type_var, type_arg in params_type_args
         }
 
-        print(list(params_type_args))
-        relation_options.append(
-            RelationToReifiedRelation(
-                annotated_type=annotation,
-                edge_model=edge_model,
-                reified_relation_type=origin,
-                parameter_type_options=frozendict(type_options),
+        if issubclass(origin, ReifiedRelation):
+            relation_options.append(
+                RelationToReifiedRelation(
+                    annotated_type=annotation,
+                    edge_model=edge_model,
+                    reified_relation_type=origin,
+                    parameter_type_options=frozendict(type_options),
+                )
             )
-        )
+        if issubclass(origin, SemanticSpace):
+            relation_options.append(
+                RelationToSemanticSpace(
+                    annotated_type=annotation,
+                    edge_model=edge_model,
+                    semantic_space_type=origin,
+                    parameter_type_options=frozendict(type_options),
+                )
+            )
 
     if isclass(annotation) and issubclass(annotation, Document):
         for concrete_type in get_concrete_types(annotation):
@@ -339,15 +351,18 @@ def build_relatable_field_definition(
         )
 
     elif is_list_relatable(field_info.annotation):
+        print("is list relatable")
         if TYPE_CHECKING:
             assert field_info.annotation
 
         # If wrapped in a list, unwrap the list type
         annotation = get_args(field_info.annotation)[0]
 
-        if is_parameterized_generic(annotation):
-            model.depends_on_classes.add(get_origin(annotation))
-        else:
+        if is_parameterized_generic(annotation) and isclass(
+            (origin := get_origin(annotation))
+        ):
+            model.depends_on_classes.add(origin)
+        elif isclass(annotation):
             model.depends_on_classes.add(annotation)
 
         return RelationFieldDefinition(
@@ -365,8 +380,10 @@ def build_relatable_field_definition(
             assert is_relatable(field_info.annotation)
             assert is_single_relatable(field_info.annotation)
 
-        if is_parameterized_generic(field_info.annotation):
-            model.depends_on_classes.add(get_origin(field_info.annotation))  # pyright: ignore[reportArgumentType]  # ty:ignore[invalid-argument-type]
+        if is_parameterized_generic(field_info.annotation) and isclass(
+            (origin := get_origin(field_info.annotation))
+        ):
+            model.depends_on_classes.add(origin)  # pyright: ignore[reportArgumentType]
             model.depends_on_classes.update(get_args(field_info.annotation))
         else:
             model.depends_on_classes.add(field_info.annotation)
@@ -390,10 +407,8 @@ def build_embedded_field_definition(
             field_info.annotation
         )
 
-    print(field_info.annotation)
-
     field_options: set[type[Embedded]] = get_concrete_types(field_info.annotation)
-    print(field_options)
+
     if isclass(field_info.annotation):
         model.depends_on_classes.add(field_info.annotation)
 
@@ -426,6 +441,21 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 )
 
     for field_name, field_info in model.model_fields.items():
+        if field_name == "type":
+            continue
+
+        if (
+            issubclass(model, SemanticSpace)
+            and model is not SemanticSpace
+            and model.__pydantic_generic_metadata__["origin"] is None
+        ):
+            model._meta.field_definitions.add_field(
+                name=field_name,
+                field_definition=build_relatable_field_definition(
+                    field_name, field_info, model
+                ),
+            )
+
         if issubclass(model, ReifiedRelation):
             if get_origin(field_info.annotation) and isinstance(
                 get_args(field_info.annotation)[0], TypeVar
@@ -450,6 +480,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
         elif is_relatable(field_info.annotation) or is_list_relatable(
             field_info.annotation
         ):
+            print("here")
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=build_relatable_field_definition(

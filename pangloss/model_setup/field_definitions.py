@@ -98,8 +98,10 @@ class RelationToEntity(RelationOption):
 
 
 @dataclass(frozen=True, kw_only=True)
-class RelationToSemanticspace(RelationOption):
-    annotated_type: type[SemanticSpace]
+class RelationToSemanticSpace(RelationOption):
+    annotated_type: TRelationFieldDefinitionAnnotation
+    semantic_space_type: type[SemanticSpace]
+    parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
 @dataclass(frozen=True, kw_only=True)
