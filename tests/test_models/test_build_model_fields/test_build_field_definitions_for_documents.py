@@ -29,6 +29,7 @@ from pangloss.model_setup.initialise_field_definitions import (
     is_union_of_embedded,
 )
 from pangloss.model_setup.model_bases.configs import EntityFieldConfig, RelationConfig
+from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
@@ -238,6 +239,17 @@ def test_is_relatable_on_semantic_space():
         pass
 
     assert is_relatable(Negative[Statement])
+
+
+def test_is_relatable_on_conjunction():
+    class Action(Document):
+        pass
+
+    class Alternative[T](Conjunction):
+        alternatives: T
+
+    assert is_relatable(Alternative)
+    assert is_relatable(Alternative[Action])
 
 
 def test_is_embedded():
@@ -909,6 +921,9 @@ def test_semantic_space_fields():
     class ReallyNegative[Contents](Negative[Contents]):
         stuff: int
 
+    class NonParameterisedNegative(Negative):
+        pass
+
     negative_contents_field = Negative._meta.fields["contents"]
     assert negative_contents_field
     assert isinstance(negative_contents_field, RelationFieldDefinition)
@@ -924,9 +939,26 @@ def test_semantic_space_fields():
     assert really_negative_contents_field.annotated_type.__name__ == "Contents"
     assert really_negative_contents_field.field_name == "contents"
     assert really_negative_contents_field.field_on_model is ReallyNegative
-
     really_negative_stuff_field = ReallyNegative._meta.fields["stuff"]
     assert isinstance(really_negative_stuff_field, LiteralFieldDefinition)
+
+    # Check still works with a SemanticSpace without declared parameters
+    non_parameterised_negative_contents_field = NonParameterisedNegative._meta.fields[
+        "contents"
+    ]
+    assert non_parameterised_negative_contents_field
+    assert isinstance(
+        non_parameterised_negative_contents_field, RelationFieldDefinition
+    )
+    assert isinstance(non_parameterised_negative_contents_field.annotated_type, TypeVar)
+    assert (
+        non_parameterised_negative_contents_field.annotated_type.__name__ == "Contents"
+    )
+    assert non_parameterised_negative_contents_field.field_name == "contents"
+    assert (
+        non_parameterised_negative_contents_field.field_on_model
+        is NonParameterisedNegative
+    )
 
 
 def test_relation_to_semantic_space():
@@ -962,3 +994,132 @@ def test_relation_to_semantic_space():
     assert content_param_type_option.type_options == frozenset(
         [RelationToDocument(annotated_type=Task)]
     )
+
+
+def test_relation_to_semantic_space_includes_subclass():
+    class Negative[Contents](SemanticSpace[Contents]):
+        pass
+
+    class Statement(Document):
+        action: Negative[Task]
+
+    class Task(Document):
+        pass
+
+    class ReallyNegative(Negative):
+        pass
+
+    statement_action_field = Statement._meta.fields["action"]
+    assert statement_action_field
+    assert isinstance(statement_action_field, RelationFieldDefinition)
+    assert statement_action_field.field_name == "action"
+    assert statement_action_field.field_on_model is Statement
+    assert statement_action_field.annotated_type == Negative[Task]
+
+    assert len(statement_action_field.type_options) == 2
+
+    statement_action_field_type_options = statement_action_field.type_options
+
+    type_option_0 = [
+        t
+        for t in statement_action_field_type_options
+        if isinstance(t, RelationToSemanticSpace) and t.semantic_space_type is Negative
+    ][0]
+    assert isinstance(type_option_0, RelationToSemanticSpace)
+    assert type_option_0.annotated_type == Negative[Task]
+    assert type_option_0.edge_model is None
+    assert type_option_0.semantic_space_type is Negative
+    type_options_0_contents = type_option_0.parameter_type_options["Contents"]
+    assert type_options_0_contents.type_var_name == "Contents"
+    assert type_options_0_contents.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
+    )
+
+    type_option_1 = [
+        t
+        for t in statement_action_field_type_options
+        if isinstance(t, RelationToSemanticSpace)
+        and t.semantic_space_type is ReallyNegative
+    ][0]
+    assert type_option_1.annotated_type is Negative[Task]
+    assert type_option_1.edge_model is None
+    assert type_option_1.semantic_space_type is ReallyNegative
+    type_options_1_contents = type_option_1.parameter_type_options["Contents"]
+    assert type_options_1_contents.type_var_name == "Contents"
+    assert type_options_1_contents.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
+    )
+
+
+def test_union_of_semantic_space_with_regular_type():
+    class Negative[Content](SemanticSpace[Content]):
+        pass
+
+    class ReallyNegative(Negative):
+        pass
+
+    class Statement(Document):
+        action: Task | Negative[Task]
+
+    class Task(Document):
+        pass
+
+    statement_action_field = Statement._meta.fields["action"]
+    assert statement_action_field
+    assert isinstance(statement_action_field, RelationFieldDefinition)
+    assert statement_action_field.field_name == "action"
+    assert statement_action_field.field_on_model is Statement
+    assert len(statement_action_field.type_options) == 3
+
+    assert any(
+        isinstance(option, RelationToDocument) and option.annotated_type is Task
+        for option in statement_action_field.type_options
+    )
+
+    negative_option = next(
+        option
+        for option in statement_action_field.type_options
+        if isinstance(option, RelationToSemanticSpace)
+        and option.semantic_space_type is Negative
+    )
+    assert negative_option.annotated_type == Negative[Task]
+    negative_contents_param = negative_option.parameter_type_options["Content"]
+    assert negative_contents_param.type_var.__name__ == "Content"
+    assert negative_contents_param.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
+    )
+
+    really_negative_option = next(
+        option
+        for option in statement_action_field.type_options
+        if isinstance(option, RelationToSemanticSpace)
+        and option.semantic_space_type is ReallyNegative
+    )
+    assert really_negative_option.annotated_type == Negative[Task]
+    really_negative_contents_param = really_negative_option.parameter_type_options[
+        "Content"
+    ]
+    assert really_negative_contents_param.type_var.__name__ == "Content"
+    assert really_negative_contents_param.type_options == frozenset(
+        [RelationToDocument(annotated_type=Task)]
+    )
+
+
+def test_conjunction_fields():
+    class Alternative[T](Conjunction):
+        alternatives: T
+
+    assert Alternative._meta.fields
+    alternative_alternatives_field = Alternative._meta.fields["alternatives"]
+    assert isinstance(alternative_alternatives_field, RelationFieldDefinition)
+    assert alternative_alternatives_field.field_name == "alternatives"
+    assert alternative_alternatives_field.field_on_model is Alternative
+    assert isinstance(alternative_alternatives_field.annotated_type, TypeVar)
+    assert alternative_alternatives_field.annotated_type.__name__ == "T"
+    assert alternative_alternatives_field.type_options
+    type_option = alternative_alternatives_field.type_options.pop()
+    assert isinstance(type_option, RelationToTypeVar)
+    assert isinstance(type_option.annotated_type, TypeVar)
+    assert type_option.annotated_type.__name__ == "T"
+    assert type_option.edge_model is None
+    assert type_option.type_var_name == "T"

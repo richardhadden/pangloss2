@@ -6,6 +6,7 @@ from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
 
 type ConcreteUnionType[T] = type[type[T] | type[T]]
@@ -40,6 +41,12 @@ def get_concrete_types(
 
 @overload
 def get_concrete_types(
+    model: type[SemanticSpace], include_abstract: bool = False
+) -> set[type[SemanticSpace]]: ...
+
+
+@overload
+def get_concrete_types(
     model: type[HeritableTrait | NonHeritableTrait],
     include_abstract: bool = False,
 ) -> set[type[Document]] | set[type[Entity]]: ...
@@ -66,12 +73,13 @@ def get_concrete_types(
     concrete_types = []
     if isinstance(model, UnionType):
         for type_in_union in get_args(model):
-            print(">", type_in_union)
             concrete_types.extend(
                 get_concrete_types(type_in_union, include_abstract=include_abstract)
             )
 
-    if isclass(model) and issubclass(model, (Document, Entity, Embedded)):
+    if isclass(model) and issubclass(
+        model, (Document, Entity, Embedded, SemanticSpace)
+    ):
         if not model._meta.abstract or include_abstract:
             concrete_types.append(model)
         concrete_types.extend(
@@ -80,7 +88,7 @@ def get_concrete_types(
     return set(concrete_types)
 
 
-def generic_get_subclasses[T: Document | Entity | Embedded](
+def generic_get_subclasses[T: Document | Entity | Embedded | SemanticSpace](
     model: type[T], include_abstract: bool = False
 ) -> set[type[T]]:
     """Recursively find subclasses of a Document or Entity model.
@@ -97,6 +105,10 @@ def generic_get_subclasses[T: Document | Entity | Embedded](
     """
     subclasses = []
     for subclass in model.__subclasses__():
+        # Skip if it is a parameterised generic
+        if subclass.__pydantic_generic_metadata__["origin"] is not None:
+            continue
+
         if not subclass._meta.abstract or include_abstract:
             subclasses += [
                 subclass,

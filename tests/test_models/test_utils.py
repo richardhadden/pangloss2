@@ -2,6 +2,7 @@ import datetime
 
 from pangloss.model_setup.model_bases.document import Document, DocumentMeta
 from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
+from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.utils import generic_get_subclasses, get_concrete_types
 
 
@@ -85,3 +86,29 @@ def test_get_concrete_types_with_embedded_abstract_in_union():
     assert get_concrete_types(Date) == set([SpecialDate])
     assert get_concrete_types(SpecialDate) == set([SpecialDate])
     assert get_concrete_types(Date | SpecialDate) == set([SpecialDate])
+
+
+def test_get_concrete_types_with_semantic_spaces():
+    class Negative[Contents](SemanticSpace[Contents]):
+        pass
+
+    class ReallyNegative(Negative):
+        pass
+
+    assert get_concrete_types(Negative) == set([Negative, ReallyNegative])
+
+
+def test_get_concrete_types_with_semantic_spaces_does_not_return_parametrised():
+    class Negative[Contents](SemanticSpace[Contents]):
+        pass
+
+    class ReallyNegative(Negative):
+        pass
+
+    class Statement(Document):
+        action: Negative[Task]
+
+    class Task(Document):
+        pass
+
+    assert get_concrete_types(Negative) == set([Negative, ReallyNegative])

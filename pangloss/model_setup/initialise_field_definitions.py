@@ -36,6 +36,7 @@ from pangloss.model_setup.field_definitions import (
 )
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.configs import RelationConfig
+from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
@@ -235,6 +236,7 @@ def build_relation_options(
         edge_model = edge_model
 
     origin = get_origin(annotation)
+
     if isclass(origin) and issubclass(origin, UnionType):
         for union_arg in get_args(annotation):
             relation_options.extend(
@@ -246,7 +248,7 @@ def build_relation_options(
         and issubclass(annotation, _DeclaredClass)
         and (origin := annotation.__pydantic_generic_metadata__["origin"])
         and isclass(origin)
-        and issubclass(origin, (ReifiedRelation, SemanticSpace))
+        and issubclass(origin, (ReifiedRelation, SemanticSpace, Conjunction))
     ):
         type_args = annotation.__pydantic_generic_metadata__["args"]
         parameters = origin.__pydantic_generic_metadata__["parameters"]
@@ -272,6 +274,7 @@ def build_relation_options(
         }
 
         if issubclass(origin, ReifiedRelation):
+            model.depends_on_classes.add(origin)
             relation_options.append(
                 RelationToReifiedRelation(
                     annotated_type=annotation,
@@ -281,14 +284,16 @@ def build_relation_options(
                 )
             )
         if issubclass(origin, SemanticSpace):
-            relation_options.append(
-                RelationToSemanticSpace(
-                    annotated_type=annotation,
-                    edge_model=edge_model,
-                    semantic_space_type=origin,
-                    parameter_type_options=frozendict(type_options),
+            model.depends_on_classes.add(origin)
+            for concrete_semantic_space in get_concrete_types(origin):
+                relation_options.append(
+                    RelationToSemanticSpace(
+                        annotated_type=annotation,
+                        edge_model=edge_model,
+                        semantic_space_type=concrete_semantic_space,
+                        parameter_type_options=frozendict(type_options),
+                    )
                 )
-            )
 
     if isclass(annotation) and issubclass(annotation, Document):
         for concrete_type in get_concrete_types(annotation):
@@ -320,13 +325,14 @@ def extract_relation_config(field_info: FieldInfo) -> RelationConfig | None:
 
 
 def is_parameterized_generic(tp):
+    print(tp)
     return get_origin(tp) is not None and len(get_args(tp)) > 0
 
 
 def build_relatable_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> RelationFieldDefinition:
-
+    print(field_name, field_info.annotation, model.__name__)
     relation_config = extract_relation_config(field_info)
 
     reverse_name = (
@@ -335,8 +341,10 @@ def build_relatable_field_definition(
         else f"{field_name}_reverse"
     )
 
-    if is_parameterized_generic(field_info.annotation) and isinstance(
-        (arg := get_args(field_info.annotation)[0]), TypeVar
+    if (
+        is_parameterized_generic(field_info.annotation)
+        and isinstance((arg := get_args(field_info.annotation)[0]), TypeVar)
+        and get_origin(field_info.annotation) is list
     ):
         return RelationFieldDefinition(
             field_name=field_name,
@@ -349,9 +357,25 @@ def build_relatable_field_definition(
             reverse_name=reverse_name,
             wrapper=list,
         )
+    elif isinstance(field_info.annotation, TypeVar):
+        return RelationFieldDefinition(
+            field_name=field_name,
+            field_on_model=model,
+            annotated_type=field_info.annotation,  # pyright: ignore[reportArgumentType]
+            type_options=set(
+                [
+                    RelationToTypeVar(
+                        annotated_type=field_info.annotation,
+                        type_var_name=field_info.annotation.__name__,
+                    )
+                ]
+            ),
+            overrides_parent_fields=[],
+            reverse_name=reverse_name,
+            wrapper=None,
+        )
 
     elif is_list_relatable(field_info.annotation):
-        print("is list relatable")
         if TYPE_CHECKING:
             assert field_info.annotation
 
@@ -456,6 +480,18 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 ),
             )
 
+        if (
+            issubclass(model, Conjunction)
+            and model is not Conjunction
+            and model.__pydantic_generic_metadata__["origin"] is None
+        ):
+            model._meta.field_definitions.add_field(
+                name=field_name,
+                field_definition=build_relatable_field_definition(
+                    field_name, field_info, model
+                ),
+            )
+
         if issubclass(model, ReifiedRelation):
             if get_origin(field_info.annotation) and isinstance(
                 get_args(field_info.annotation)[0], TypeVar
@@ -480,7 +516,6 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
         elif is_relatable(field_info.annotation) or is_list_relatable(
             field_info.annotation
         ):
-            print("here")
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=build_relatable_field_definition(
