@@ -82,7 +82,7 @@ class FieldSubclassing:
 
 @dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):
-    annotated_type: TRelationFieldDefinitionAnnotation  # pyright: ignore[reportIncompatibleVariableOverride]
+    annotated_type: TRelationFieldDefinitionAnnotation
     type_options: set[RelationOption] = dataclass_field(default_factory=set)
     reverse_name: str
     subclasses_parent_fields: list[str | FieldSubclassing]
