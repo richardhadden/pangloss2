@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from functools import cache
 from inspect import isclass
 from types import UnionType
 from typing import (
@@ -22,6 +23,8 @@ from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
     EmbeddedFieldDefinition,
     EmbeddedOption,
+    FieldDefinition,
+    FieldSubclassing,
     ListFieldDefinition,
     LiteralFieldDefinition,
     ParameterTypeOptions,
@@ -45,7 +48,7 @@ from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.utils import get_concrete_types
+from pangloss.model_setup.utils import get_all_parent_classes, get_concrete_types
 
 LITERAL_TYPES = {str, int, float, date, datetime}
 
@@ -161,7 +164,7 @@ def is_single_relatable(annotation: type[Any]) -> TypeIs[type[_DeclaredClass]]:
     return False
 
 
-def is_list_relatable(annotation: type[Any] | None):
+def is_list_relatable(annotation: type[Any] | None) -> bool:
 
     # list[X]
     if get_origin(annotation) is not list:
@@ -219,7 +222,7 @@ def build_list_field_definition(
         )
 
 
-def flatten(xss):
+def flatten[T](xss: list[list[T]]) -> list[T]:
     return [x for xs in xss for x in xs]
 
 
@@ -337,15 +340,19 @@ def extract_relation_config(field_info: FieldInfo) -> RelationConfig | None:
 
 
 def is_parameterized_generic(tp):
-    print(tp)
     return get_origin(tp) is not None and len(get_args(tp)) > 0
 
 
 def build_relatable_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> RelationFieldDefinition:
-    print(field_name, field_info.annotation, model.__name__)
+
     relation_config = extract_relation_config(field_info)
+
+    if relation_config:
+        field_subclassings = relation_config.subclasses_parent_fields
+    else:
+        field_subclassings = []
 
     reverse_name = (
         relation_config.reverse_name
@@ -365,7 +372,7 @@ def build_relatable_field_definition(
             type_options=set(
                 [RelationToTypeVar(annotated_type=arg, type_var_name=arg.__name__)]
             ),
-            overrides_parent_fields=[],
+            subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=list,
         )
@@ -382,7 +389,7 @@ def build_relatable_field_definition(
                     )
                 ]
             ),
-            overrides_parent_fields=[],
+            subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=None,
         )
@@ -406,7 +413,7 @@ def build_relatable_field_definition(
             field_on_model=model,
             annotated_type=field_info.annotation,
             type_options=build_relation_options(model, annotation),
-            overrides_parent_fields=[],
+            subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=list,
         )
@@ -429,7 +436,7 @@ def build_relatable_field_definition(
             field_on_model=model,
             annotated_type=field_info.annotation,
             type_options=build_relation_options(model, field_info.annotation),
-            overrides_parent_fields=[],
+            subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=None,
         )
@@ -460,8 +467,98 @@ def build_embedded_field_definition(
     )
 
 
+@cache
+def get_relation_config(field_info: FieldInfo) -> RelationConfig | None:
+    if field_info.metadata and (
+        rcs := [md for md in field_info.metadata if isinstance(md, RelationConfig)]
+    ):
+        relation_config = cast(RelationConfig, rcs[0])
+        return relation_config
+    return None
+
+
+def get_field_origin_model_and_definition(
+    model: type[_DeclaredClass], field_name: str
+) -> tuple[type[_DeclaredClass], FieldDefinition] | tuple[None, None]:
+    last_parent_with_field: type[_DeclaredClass] | None = None
+
+    for parent_class in get_all_parent_classes(model):
+        print(model.__name__, parent_class.__name__)
+        if field_name in parent_class.model_fields:
+            last_parent_with_field = parent_class
+        else:
+            break
+
+    if last_parent_with_field:
+        print(
+            ">", last_parent_with_field, last_parent_with_field._meta.fields[field_name]
+        )
+        return last_parent_with_field, last_parent_with_field._meta.fields[field_name]
+
+    return None, None
+
+
+def normalise_and_get_subclassed_fields(
+    model: type[_DeclaredClass],
+) -> dict[str, FieldSubclassing]:
+    subclassed_fields = {}
+    for field_name, field_info in model.model_fields.items():
+        if relation_config := get_relation_config(field_info):
+            field_subclassings = []
+            for field_subclassing in relation_config.subclasses_parent_fields:
+                if isinstance(field_subclassing, FieldSubclassing):
+                    origin_class, definition = get_field_origin_model_and_definition(
+                        model, field_subclassing.field_name
+                    )
+
+                    if not origin_class:
+                        raise PanglossModelError(
+                            f"{model.__name__}.{field_name} is trying to subclass a field ('{field_subclassing.field_name}') that does not exist on a parent class"
+                        )
+
+                    subclassed_fields[field_subclassing.field_name] = FieldSubclassing(
+                        field_name=field_subclassing.field_name,
+                        disambiguator=field_subclassing.disambiguator,
+                        field_on_model=field_subclassing.field_on_model or origin_class,
+                        subclassed_field_definition=field_subclassing.subclassed_field_definition
+                        or definition,
+                    )
+                    field_subclassings.append(
+                        subclassed_fields[field_subclassing.field_name]
+                    )
+                else:
+                    assert isinstance(field_subclassing, str)
+                    origin_class, definition = get_field_origin_model_and_definition(
+                        model, field_subclassing
+                    )
+
+                    if not origin_class:
+                        raise PanglossModelError(
+                            f"{model.__name__}.{field_name} is trying to subclass a field ('{field_subclassing}') that does not exist on a parent class"
+                        )
+
+                    subclassed_fields[field_subclassing] = FieldSubclassing(
+                        field_subclassing,
+                        disambiguator=None,
+                        field_on_model=origin_class,
+                        subclassed_field_definition=definition,
+                    )
+                    field_subclassings.append(subclassed_fields[field_subclassing])
+
+            relation_config.subclasses_parent_fields = field_subclassings
+    return subclassed_fields
+
+
+def get_fields_on_model(model: type[_DeclaredClass]):
+    """Yields an iterable of field name and field info for a model, removing subclassed
+    fields"""
+    subclassed_fields = normalise_and_get_subclassed_fields(model)
+    for field_name, field_info in model.model_fields.items():
+        if field_name not in subclassed_fields:
+            yield field_name, field_info
+
+
 def initialise_field_definitions(model: type[_DeclaredClass]):
-    from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
     # TODO: REMOVE THIS HOOK WHEN ALL MODELS HAVE A META CLASS!!
     if not hasattr(model, "_meta"):
@@ -476,7 +573,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     f"EdgeModel {model.__name__} does not support relations ({model.__name__}.{field_name})"
                 )
 
-    for field_name, field_info in model.model_fields.items():
+    for field_name, field_info in get_fields_on_model(model):
         if field_name == "type":
             continue
 

@@ -72,12 +72,20 @@ class EmbeddedOption:
     annotated_type: type[Embedded]
 
 
+@dataclass(frozen=True)
+class FieldSubclassing:
+    field_name: str
+    disambiguator: str | None = None
+    field_on_model: type[_DeclaredClass] | None = None
+    subclassed_field_definition: FieldDefinition | None = None
+
+
 @dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):
     annotated_type: TRelationFieldDefinitionAnnotation  # pyright: ignore[reportIncompatibleVariableOverride]
     type_options: set[RelationOption] = dataclass_field(default_factory=set)
     reverse_name: str
-    overrides_parent_fields: list[str]
+    subclasses_parent_fields: list[str | FieldSubclassing]
     wrapper: type[list | tuple] | None = None
 
 

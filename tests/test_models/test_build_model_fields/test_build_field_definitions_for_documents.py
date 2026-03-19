@@ -9,6 +9,7 @@ from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
     EmbeddedFieldDefinition,
     EmbeddedOption,
+    FieldSubclassing,
     ListFieldDefinition,
     LiteralFieldDefinition,
     ParameterTypeOptions,
@@ -21,6 +22,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToTypeVar,
 )
 from pangloss.model_setup.initialise_field_definitions import (
+    get_fields_on_model,
     is_embedded,
     is_list_of_literal,
     is_list_relatable,
@@ -29,7 +31,7 @@ from pangloss.model_setup.initialise_field_definitions import (
     is_single_relatable,
     is_union_of_embedded,
 )
-from pangloss.model_setup.model_bases.configs import EntityFieldConfig, RelationConfig
+from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
@@ -208,7 +210,7 @@ def test_is_relatable():
         concerns_dog_list: list[Dog]
         concerns_dog_annotated: Annotated[
             list[ViaEdge[Dog, ToDogEdge]],
-            EntityFieldConfig(reverse_name="is_concerned_in"),
+            RelationConfig(reverse_name="is_concerned_in"),
         ]
         concerns_animal_multiple: Annotated[
             list[ViaEdge[Dog, ToDogEdge]] | Cat,
@@ -1231,3 +1233,81 @@ def test_relation_to_conjunction():
     assert type_options_1_result.type_options == frozenset(
         [RelationToDocument(annotated_type=Incident)]
     )
+
+
+def test_get_fields_basic():
+    class Action(Document):
+        carried_out_by_person: Person
+        carried_out_when: datetime
+        carried_out_where: Place
+
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    assert list(field_name for field_name, _ in get_fields_on_model(Action)) == [
+        "carried_out_by_person",
+        "carried_out_when",
+        "carried_out_where",
+    ]
+
+
+def test_get_fields_with_overridden():
+    class Statement(Document):
+        actor: Person
+        location: Place
+
+    class Action(Statement):
+        carried_out_by_person: Annotated[
+            Person,
+            RelationConfig(subclasses_parent_fields=[FieldSubclassing("actor")]),
+        ]
+        carried_out_when: datetime
+        carried_out_where: Annotated[
+            Place, RelationConfig(subclasses_parent_fields=["location"])
+        ]
+
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    assert list(field_name for field_name, _ in get_fields_on_model(Action)) == [
+        "carried_out_by_person",
+        "carried_out_when",
+        "carried_out_where",
+    ]
+
+    action_carried_out_by_person_field = Action._meta.fields["carried_out_where"]
+    assert isinstance(action_carried_out_by_person_field, RelationFieldDefinition)
+    assert action_carried_out_by_person_field.subclasses_parent_fields == [
+        FieldSubclassing(
+            field_name="location",
+            field_on_model=Statement,
+            subclassed_field_definition=Statement._meta.fields["location"],
+        )
+    ]
+
+
+def test_get_fields_with_overridden_raises_error_if_no_such_field():
+    with pytest.raises(PanglossModelError):
+
+        class Statement(Document):
+            actor: Person
+
+        class Action(Statement):
+            carried_out_by_person: Annotated[
+                Person,
+                RelationConfig(
+                    subclasses_parent_fields=[FieldSubclassing("WRONG_FIELD_NAME")]
+                ),
+            ]
+
+        class Person(Entity):
+            pass
+
+        class Place(Entity):
+            pass

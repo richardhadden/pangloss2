@@ -1,9 +1,24 @@
 import datetime
 
+from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document, DocumentMeta
+from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
+from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.reified_relation import (
+    ReifiedRelation,
+    ReifiedRelationDocument,
+)
+from pangloss.model_setup.model_bases.relation import Relation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.utils import generic_get_subclasses, get_concrete_types
+from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+from pangloss.model_setup.utils import (
+    generic_get_subclasses,
+    get_all_parent_classes,
+    get_concrete_types,
+    get_parent_class,
+    get_usable_declared_classes,
+)
 
 
 def test_get_generic_subclasses():
@@ -112,3 +127,46 @@ def test_get_concrete_types_with_semantic_spaces_does_not_return_parametrised():
         pass
 
     assert get_concrete_types(Negative) == set([Negative, ReallyNegative])
+
+
+def test_usable_declared_classes():
+    assert get_usable_declared_classes() == set(
+        [
+            Conjunction,
+            Document,
+            EdgeModel,
+            Embedded,
+            Entity,
+            ReifiedRelation,
+            ReifiedRelationDocument,
+            SemanticSpace,
+            Relation,
+            HeritableTrait,
+            NonHeritableTrait,
+        ]
+    )
+
+
+def test_get_parent_class():
+    class Statement(Document):
+        pass
+
+    class Action(Statement):
+        pass
+
+    parent_class = get_parent_class(Action)
+
+    assert parent_class is Statement
+
+
+def test_get_all_parent_classes():
+    class Statement(Document):
+        something: int
+
+    class Action(Statement):
+        pass
+
+    class Task(Action):
+        pass
+
+    assert get_all_parent_classes(Task) == [Action, Statement]

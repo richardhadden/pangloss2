@@ -1,3 +1,4 @@
+from functools import cache
 from inspect import isclass
 from types import UnionType
 from typing import Any, get_args, overload
@@ -7,8 +8,16 @@ from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.reified_relation import (
+    ReifiedRelation,
+    ReifiedRelationDocument,
+)
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+from pangloss.model_setup.model_bases.trait import (
+    HeritableTrait,
+    NonHeritableTrait,
+    _Trait,
+)
 
 type ConcreteUnionType[T] = type[type[T] | type[T]]
 
@@ -196,3 +205,135 @@ def get_direct_instantiations_of_trait(
             if issubclass(subclass, (Document, Entity))
         ]
     )
+
+
+@cache
+def get_usable_declared_classes():
+    usable_subclasses: list[type[_DeclaredClass]] = _DeclaredClass.__subclasses__()
+    usable_subclasses.remove(_Trait)
+    usable_subclasses.extend([HeritableTrait, NonHeritableTrait])
+    return set(usable_subclasses)
+
+
+@overload
+def get_parent_class(model: type[Document]) -> type[Document] | None: ...
+
+
+@overload
+def get_parent_class(model: type[Entity]) -> type[Entity] | None: ...
+
+
+@overload
+def get_parent_class(model: type[Embedded]) -> type[Embedded] | None: ...
+
+
+@overload
+def get_parent_class(model: type[ReifiedRelation]) -> type[ReifiedRelation] | None: ...
+
+
+@overload
+def get_parent_class(
+    model: type[ReifiedRelationDocument],
+) -> type[ReifiedRelationDocument] | None: ...
+
+
+@overload
+def get_parent_class(model: type[SemanticSpace]) -> type[SemanticSpace] | None: ...
+
+
+@overload
+def get_parent_class(model: type[Conjunction]) -> type[Conjunction] | None: ...
+
+
+@overload
+def get_parent_class(
+    model: type[HeritableTrait],
+) -> type[HeritableTrait] | None: ...
+
+
+@overload
+def get_parent_class(
+    model: type[NonHeritableTrait],
+) -> type[NonHeritableTrait] | None: ...
+
+
+@overload
+def get_parent_class(
+    model: type[_DeclaredClass],
+) -> type[_DeclaredClass] | None: ...
+
+
+def get_parent_class(model) -> Any:
+    for parent_class in model.mro():
+        if parent_class is model:
+            continue
+        elif parent_class in get_usable_declared_classes():
+            return None
+        else:
+            return parent_class
+    return None
+
+
+@overload
+def get_all_parent_classes(model: type[Document]) -> list[type[Document]]: ...
+
+
+@overload
+def get_all_parent_classes(model: type[Entity]) -> list[type[Entity]]: ...
+
+
+@overload
+def get_all_parent_classes(model: type[Embedded]) -> list[type[Embedded]]: ...
+
+
+@overload
+def get_all_parent_classes(
+    model: type[ReifiedRelation],
+) -> list[type[ReifiedRelation]]: ...
+
+
+@overload
+def get_all_parent_classes(
+    model: type[ReifiedRelationDocument],
+) -> list[type[ReifiedRelationDocument]]: ...
+
+
+@overload
+def get_all_parent_classes(
+    model: type[SemanticSpace],
+) -> list[type[SemanticSpace]]: ...
+
+
+@overload
+def get_all_parent_classes(
+    model: type[Conjunction],
+) -> list[type[Conjunction]]: ...
+
+
+@overload
+def get_all_parent_classes(
+    model: type[HeritableTrait],
+) -> list[type[HeritableTrait]]: ...
+
+
+@overload
+def get_all_parent_classes(
+    model: type[NonHeritableTrait],
+) -> list[type[NonHeritableTrait]]: ...
+
+
+@overload
+def get_all_parent_classes[T: type[_DeclaredClass]](model: T) -> list[T]: ...
+
+
+def get_all_parent_classes[T: type[_DeclaredClass]](model: T) -> list[T]:
+    parent_classes = []
+    for parent_class in model.mro():
+        if parent_class is model:
+            continue
+        elif parent_class in get_usable_declared_classes():
+            break
+        else:
+            parent_classes.append(parent_class)
+
+    return parent_classes

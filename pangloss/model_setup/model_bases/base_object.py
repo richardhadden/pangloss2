@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 class _BaseObject(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    type: str
 
     _initialised: ClassVar[bool] = False
 
