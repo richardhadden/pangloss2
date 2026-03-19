@@ -275,11 +275,15 @@ def get_parent_class(model) -> Any:
 
 
 @overload
-def get_all_parent_classes(model: type[Document]) -> list[type[Document]]: ...
+def get_all_parent_classes(
+    model: type[Document],
+) -> list[type[Document] | type[HeritableTrait] | type[NonHeritableTrait]]: ...
 
 
 @overload
-def get_all_parent_classes(model: type[Entity]) -> list[type[Entity]]: ...
+def get_all_parent_classes(
+    model: type[Entity],
+) -> list[type[Entity] | type[HeritableTrait] | type[NonHeritableTrait]]: ...
 
 
 @overload
@@ -295,7 +299,9 @@ def get_all_parent_classes(
 @overload
 def get_all_parent_classes(
     model: type[ReifiedRelationDocument],
-) -> list[type[ReifiedRelationDocument]]: ...
+) -> list[
+    type[ReifiedRelationDocument] | type[HeritableTrait] | type[NonHeritableTrait]
+]: ...
 
 
 @overload
@@ -323,10 +329,12 @@ def get_all_parent_classes(
 
 
 @overload
-def get_all_parent_classes[T: type[_DeclaredClass]](model: T) -> list[T]: ...
+def get_all_parent_classes[T](
+    model: T,
+) -> list[T]: ...
 
 
-def get_all_parent_classes[T: type[_DeclaredClass]](model: T) -> list[T]:
+def get_all_parent_classes(model):
     parent_classes = []
     for parent_class in model.mro():
         if parent_class is model:

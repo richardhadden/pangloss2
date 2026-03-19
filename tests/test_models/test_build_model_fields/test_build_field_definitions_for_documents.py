@@ -1311,3 +1311,25 @@ def test_get_fields_with_overridden_raises_error_if_no_such_field():
 
         class Place(Entity):
             pass
+
+
+def test_subclass_raises_error_if_type_not_narrowed():
+    with pytest.raises(PanglossModelError):
+
+        class Statement(Document):
+            actor: Person
+
+        class Action(Statement):
+            carried_out_by_person: Annotated[
+                Place,
+                RelationConfig(subclasses_parent_fields=[FieldSubclassing("actor")]),
+            ]
+
+        class Person(Entity):
+            pass
+
+        class Dude(Person):
+            pass
+
+        class Place(Entity):
+            pass

@@ -483,16 +483,12 @@ def get_field_origin_model_and_definition(
     last_parent_with_field: type[_DeclaredClass] | None = None
 
     for parent_class in get_all_parent_classes(model):
-        print(model.__name__, parent_class.__name__)
         if field_name in parent_class.model_fields:
             last_parent_with_field = parent_class
         else:
             break
 
     if last_parent_with_field:
-        print(
-            ">", last_parent_with_field, last_parent_with_field._meta.fields[field_name]
-        )
         return last_parent_with_field, last_parent_with_field._meta.fields[field_name]
 
     return None, None
@@ -556,6 +552,20 @@ def get_fields_on_model(model: type[_DeclaredClass]):
     for field_name, field_info in model.model_fields.items():
         if field_name not in subclassed_fields:
             yield field_name, field_info
+
+
+def check_subclass_type(field_definition: RelationFieldDefinition):
+    """Given a completed field definition, checks that the"""
+    for spf in field_definition.subclasses_parent_fields:
+        assert isinstance(spf, FieldSubclassing)
+        assert isinstance(spf.subclassed_field_definition, RelationFieldDefinition)
+        if not field_definition.type_options.issubset(
+            spf.subclassed_field_definition.type_options
+        ):
+            raise PanglossModelError(
+                f"{field_definition.field_on_model.__name__}.{field_definition.field_name} subclasses {spf.field_on_model}.{spf.field_name} "
+                "but is not of the same type or narrowing of type"
+            )
 
 
 def initialise_field_definitions(model: type[_DeclaredClass]):
@@ -625,11 +635,15 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
         elif is_relatable(field_info.annotation) or is_list_relatable(
             field_info.annotation
         ):
+            field_definition = build_relatable_field_definition(
+                field_name, field_info, model
+            )
+
+            check_subclass_type(field_definition)
+
             model._meta.field_definitions.add_field(
                 name=field_name,
-                field_definition=build_relatable_field_definition(
-                    field_name, field_info, model
-                ),
+                field_definition=field_definition,
             )
 
         elif is_list_of_literal(field_info.annotation):
