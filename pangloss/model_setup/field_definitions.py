@@ -24,10 +24,19 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, kw_only=True)
+class FieldFulfilment:
+    field_name: str
+    fulfils_class: type[_DeclaredClass]
+
+
+@dataclass(frozen=True, kw_only=True)
 class FieldDefinition:
     field_on_model: type[_DeclaredClass]
     field_name: str
     annotated_type: type[_DeclaredClass | BaseTypes | list]
+    field_required_to_fulfil: list[FieldFulfilment] = dataclass_field(
+        default_factory=list
+    )
 
     @property
     def model_field(self) -> FieldInfo:

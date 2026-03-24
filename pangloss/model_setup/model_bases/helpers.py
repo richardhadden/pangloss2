@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
 
-class FulFils[T]:
+class Fulfils[T](BaseModel):
     pass
 
 

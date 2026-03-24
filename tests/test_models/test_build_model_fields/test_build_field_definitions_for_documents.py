@@ -9,6 +9,7 @@ from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
     EmbeddedFieldDefinition,
     EmbeddedOption,
+    FieldFulfilment,
     FieldSubclassing,
     ListFieldDefinition,
     LiteralFieldDefinition,
@@ -37,7 +38,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
 from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
-from pangloss.model_setup.model_bases.helpers import ViaEdge
+from pangloss.model_setup.model_bases.helpers import Fulfils, ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
@@ -1249,7 +1250,7 @@ def test_get_fields_basic():
     class Place(Entity):
         pass
 
-    assert list(field_name for field_name, _ in get_fields_on_model(Action)) == [
+    assert list(field_name for field_name, _, _, _ in get_fields_on_model(Action)) == [
         "carried_out_by_person",
         "carried_out_when",
         "carried_out_where",
@@ -1277,7 +1278,7 @@ def test_get_fields_with_overridden():
     class Place(Entity):
         pass
 
-    assert list(field_name for field_name, _ in get_fields_on_model(Action)) == [
+    assert list(field_name for field_name, _, _, _ in get_fields_on_model(Action)) == [
         "carried_out_by_person",
         "carried_out_when",
         "carried_out_where",
@@ -1468,3 +1469,55 @@ def test_subclass_inheriting_from_non_heritable_trait():
     assert "amount" not in Beagle._meta.fields
 
     assert "amount" not in SuperBeagle._meta.fields
+
+
+def test_field_required_to_fulfil_inherited_field():
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    class PersonInLocation(Document):
+        person: Person
+        place: Place
+
+    class Statement(Document):
+        pass
+
+    class Action(Document, Fulfils[PersonInLocation]):
+        pass
+
+    action_person_field = Action._meta.fields["person"]
+    assert isinstance(action_person_field, RelationFieldDefinition)
+    assert action_person_field.field_required_to_fulfil == [
+        FieldFulfilment(field_name="person", fulfils_class=PersonInLocation)
+    ]
+
+    action_place_field = Action._meta.fields["place"]
+    assert isinstance(action_place_field, RelationFieldDefinition)
+    assert action_place_field.field_required_to_fulfil == [
+        FieldFulfilment(field_name="place", fulfils_class=PersonInLocation)
+    ]
+
+    assert False
+
+
+def test_field_required_to_fulfil_subclassed_field():
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    class PersonInLocation(Document):
+        person: Person
+        place: Place
+
+    class Statement(Document):
+        pass
+
+    class Action(Document, Fulfils[PersonInLocation]):
+        person_carrying_out_action: Annotated[
+            Person, RelationConfig(subclasses_parent_fields=["person"])
+        ]

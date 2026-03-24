@@ -25,6 +25,7 @@ from pangloss.model_setup.field_definitions import (
     EmbeddedFieldDefinition,
     EmbeddedOption,
     FieldDefinition,
+    FieldFulfilment,
     FieldSubclassing,
     ListFieldDefinition,
     LiteralFieldDefinition,
@@ -46,7 +47,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
-from pangloss.model_setup.model_bases.helpers import ViaEdge
+from pangloss.model_setup.model_bases.helpers import Fulfils, ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait
@@ -491,9 +492,13 @@ def get_field_origin_model_and_definition(
     last_parent_with_field: type[_DeclaredClass] | None = None
 
     for parent_class in get_all_parent_classes(model):
-        print(parent_class)
-        if field_name in parent_class.model_fields:
+        if parent_class.__pydantic_generic_metadata__["origin"] is Fulfils:
+            fulfiled_class = parent_class.__pydantic_generic_metadata__["args"][0]
+            if field_name in fulfiled_class.model_fields:
+                last_parent_with_field = fulfiled_class
+        elif field_name in parent_class.model_fields:
             last_parent_with_field = parent_class
+
         else:
             continue
 
@@ -572,6 +577,7 @@ def field_is_from_indirect_non_heritable_model(model: type[_DeclaredClass], fiel
 def get_fields_on_model(model: type[_DeclaredClass]):
     """Yields an iterable of field name and field info for a model, removing subclassed
     fields"""
+
     subclassed_fields = normalise_and_get_subclassed_fields(model)
 
     for field_name, field_info in model.model_fields.items():
@@ -581,7 +587,22 @@ def get_fields_on_model(model: type[_DeclaredClass]):
         ):
             continue
 
-        yield field_name, field_info
+        yield field_name, field_info, None, None
+
+    fulfilments = [
+        f
+        for f in get_all_parent_classes(model)
+        if issubclass(f, Fulfils) and f.__pydantic_generic_metadata__["args"]
+    ]
+    for f in fulfilments:
+        fulfilled_type: type[_DeclaredClass] = f.__pydantic_generic_metadata__["args"][
+            0
+        ]
+        for field_name, field_info in fulfilled_type.model_fields.items():
+            if field_name in subclassed_fields:
+                continue
+
+            yield field_name, field_info, fulfilled_type, field_name
 
 
 def check_subclass_type(field_definition: RelationFieldDefinition):
@@ -625,7 +646,20 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     f"EdgeModel {model.__name__} does not support relations ({model.__name__}.{field_name})"
                 )
 
-    for field_name, field_info in get_fields_on_model(model):
+    for (
+        field_name,
+        field_info,
+        model_required_to_fulfil,
+        model_field_required_to_fulfil,
+    ) in get_fields_on_model(model):
+        print(
+            ">>",
+            model.__name__,
+            field_name,
+            model_required_to_fulfil,
+            model_field_required_to_fulfil,
+        )
+
         if field_name == "type":
             continue
 
@@ -680,6 +714,13 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             field_definition = build_relatable_field_definition(
                 field_name, field_info, model
             )
+            if model_field_required_to_fulfil and model_required_to_fulfil:
+                field_definition.field_required_to_fulfil.append(
+                    FieldFulfilment(
+                        field_name=model_field_required_to_fulfil,
+                        fulfils_class=model_required_to_fulfil,
+                    )
+                )
 
             check_subclass_type(field_definition)
 
