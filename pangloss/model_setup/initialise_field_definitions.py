@@ -6,6 +6,7 @@ from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
+    Iterable,
     TypeIs,
     TypeVar,
     Union,
@@ -222,7 +223,7 @@ def build_list_field_definition(
         )
 
 
-def flatten[T](xss: list[list[T]]) -> list[T]:
+def flatten[T](xss: Iterable[Iterable[T]]) -> list[T]:
     return [x for xs in xss for x in xs]
 
 
@@ -559,9 +560,21 @@ def check_subclass_type(field_definition: RelationFieldDefinition):
     for spf in field_definition.subclasses_parent_fields:
         assert isinstance(spf, FieldSubclassing)
         assert isinstance(spf.subclassed_field_definition, RelationFieldDefinition)
-        if not field_definition.type_options.issubset(
-            spf.subclassed_field_definition.type_options
-        ):
+
+        field_type_options = set(
+            flatten(
+                get_concrete_types(f.annotated_type)
+                for f in field_definition.type_options
+            )
+        )
+        subclassed_field_type_options = set(
+            flatten(
+                get_concrete_types(f.annotated_type)
+                for f in spf.subclassed_field_definition.type_options
+            )
+        )
+
+        if not field_type_options.issubset(subclassed_field_type_options):
             raise PanglossModelError(
                 f"{field_definition.field_on_model.__name__}.{field_definition.field_name} subclasses {spf.field_on_model}.{spf.field_name} "
                 "but is not of the same type or narrowing of type"

@@ -31,6 +31,7 @@ class EntityReferenceSet(BaseModel):
 
 
 class Entity(_DeclaredClass, WithMeta[EntityMeta]):
+    Meta: ClassVar[type[EntityMeta]] = EntityMeta
     _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
     _action_classes: ClassVar[list[str]] = [
         "Create",

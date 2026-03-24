@@ -1,29 +1,68 @@
-from typing import Annotated
+from typing import Any, ClassVar, Self
 
-from pydantic_meta_kit import BaseMeta, MetaRules
+from pydantic import Field
+from pydantic_meta_kit import BaseMeta, InheritValue
 
-from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
+from pangloss.model_setup.model_bases.base_object import (
+    DeclaredClassMeta,
+    _DeclaredClass,
+)
+from pangloss.model_setup.model_bases.document import Document, DocumentMeta
+from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 
 
-class TraitMeta(BaseMeta):
-    abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
+class TraitMeta[T: HeritableTrait | NonHeritableTrait](BaseMeta, DeclaredClassMeta):
+    _owner_class: type[T] | InheritValue = InheritValue.AS_DEFAULT
+    viewable: bool | InheritValue = True
+    searchable: bool | InheritValue = True
+
+    field_definitions: ModelFields = Field(default_factory=ModelFields)
+
+    @property
+    def fields(self) -> dict[str, FieldDefinition]:
+        return self.field_definitions.fields
 
 
 class _Trait(_DeclaredClass):
+    # _trait_meta: ClassVar[TraitMeta]
     pass
 
 
-class HeritableTrait(_Trait):
+class HeritableTrait[T: Document | Entity](_Trait):
+    # _meta: ClassVar[EntityMeta] = TraitMeta[Self]()  # pyright: ignore[reportAssignmentType, reportIncompatibleVariableOverride]  # ty:ignore[invalid-assignment]
+    _meta: Any
+
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
         from pangloss.model_setup.model_manager import ModelManager
 
+        cls._initialised = False
+
+        # Make sure _meta class is new and not inherited
+        cls._meta = cls.__dict__.get("_meta", TraitMeta()) & TraitMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        # Set owner class on cls._meta
+        cls._meta._owner_class = cls
+
         ModelManager.register_heritable_trait(cls)
+        ModelManager.try_initialise_all_models(cls)
 
 
 class NonHeritableTrait(_Trait):
+    _meta: ClassVar[DocumentMeta | EntityMeta] = TraitMeta[Self]()  # pyright: ignore[reportAssignmentType, reportIncompatibleVariableOverride]  # ty:ignore[invalid-assignment]
+
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
         from pangloss.model_setup.model_manager import ModelManager
 
+        cls._initialised = False
+
+        # Make sure _meta class is new and not inherited
+        cls._meta = cls.__dict__.get("_meta", TraitMeta())  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        # Set owner class on cls._meta
+        cls._meta._owner_class = cls  # pyright: ignore[reportAttributeAccessIssue]
+
         ModelManager.register_non_heritable_trait(cls)
+        ModelManager.try_initialise_all_models(cls)

@@ -40,6 +40,7 @@ from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
+from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
 
 
 def test_meta_fields():
@@ -1333,3 +1334,71 @@ def test_subclass_raises_error_if_type_not_narrowed():
 
         class Place(Entity):
             pass
+
+
+def test_subclass_does_not_raise_error_with_subtype():
+    class Person(Entity):
+        pass
+
+    class Statement(Document):
+        actor: Person
+
+    class Action(Statement):
+        carried_out_by_person: Annotated[
+            Dude,
+            RelationConfig(subclasses_parent_fields=[FieldSubclassing("actor")]),
+        ]
+
+    class Dude(Person):
+        pass
+
+
+def test_fields_on_heritable_trait():
+    class Agent(HeritableTrait):
+        name: str
+
+    assert Agent._meta.fields
+    agent_name_field = Agent._meta.fields["name"]
+    assert agent_name_field
+    assert isinstance(agent_name_field, LiteralFieldDefinition)
+    assert agent_name_field.field_name == "name"
+    assert agent_name_field.field_on_model is Agent
+    assert agent_name_field.annotated_type is str
+
+
+def test_fields_on_non_heritable_trait():
+    class Agent(NonHeritableTrait):
+        name: str
+
+    assert Agent._meta.fields
+    agent_name_field = Agent._meta.fields["name"]
+    assert agent_name_field
+    assert isinstance(agent_name_field, LiteralFieldDefinition)
+    assert agent_name_field.field_name == "name"
+    assert agent_name_field.field_on_model is Agent
+    assert agent_name_field.annotated_type is str
+
+
+def test_inheritance_from_trait():
+    class Agent(HeritableTrait):
+        pass
+
+    class SubAgent(HeritableTrait):
+        pass
+
+    class Person(Entity, Agent):
+        pass
+
+    class Group(Entity, Agent):
+        _meta = Entity.Meta()
+
+    class Statement(Document):
+        _meta = Document.Meta(abstract=True)
+        pass
+
+    class Action(Statement):
+        pass
+
+    assert Agent._meta._owner_class is Agent
+    assert SubAgent._meta._owner_class is SubAgent
+    assert Person._meta._owner_class is Person

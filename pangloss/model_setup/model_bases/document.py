@@ -55,6 +55,7 @@ class DocumentReferenceSetBase[T](_ReferenceSetBase[T]):
 class Document(_DeclaredClass, WithMeta[DocumentMeta]):
     """An arbitrarily complex object, with nestable subdocuments and relations to Entities"""
 
+    Meta: ClassVar[type[DocumentMeta]] = DocumentMeta
     model_config = ConfigDict(validate_assignment=True)
 
     _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
