@@ -49,7 +49,13 @@ from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.utils import get_all_parent_classes, get_concrete_types
+from pangloss.model_setup.model_bases.trait import NonHeritableTrait
+from pangloss.model_setup.utils import (
+    get_all_parent_classes,
+    get_concrete_types,
+    get_direct_instantiations_of_trait,
+    model_is_trait,
+)
 
 LITERAL_TYPES = {str, int, float, date, datetime}
 
@@ -485,6 +491,7 @@ def get_field_origin_model_and_definition(
     last_parent_with_field: type[_DeclaredClass] | None = None
 
     for parent_class in get_all_parent_classes(model):
+        print(parent_class)
         if field_name in parent_class.model_fields:
             last_parent_with_field = parent_class
         else:
@@ -547,13 +554,34 @@ def normalise_and_get_subclassed_fields(
     return subclassed_fields
 
 
+def field_is_from_indirect_non_heritable_model(model: type[_DeclaredClass], field_name):
+    parent_classes = get_all_parent_classes(model)
+    indirect_non_heritable_classes: list[type[NonHeritableTrait]] = [
+        pc
+        for pc in parent_classes
+        if model_is_trait(pc)
+        and issubclass(pc, NonHeritableTrait)
+        and model not in get_direct_instantiations_of_trait(pc)
+    ]
+    for indirect_nht in indirect_non_heritable_classes:
+        if field_name in indirect_nht._meta.fields:
+            return True
+    return False
+
+
 def get_fields_on_model(model: type[_DeclaredClass]):
     """Yields an iterable of field name and field info for a model, removing subclassed
     fields"""
     subclassed_fields = normalise_and_get_subclassed_fields(model)
+
     for field_name, field_info in model.model_fields.items():
-        if field_name not in subclassed_fields:
-            yield field_name, field_info
+        if (
+            field_name in subclassed_fields
+            or field_is_from_indirect_non_heritable_model(model, field_name)
+        ):
+            continue
+
+        yield field_name, field_info
 
 
 def check_subclass_type(field_definition: RelationFieldDefinition):

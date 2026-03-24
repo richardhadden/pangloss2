@@ -383,13 +383,6 @@ def get_all_parent_classes(model):
         if is_subclass_of_with_meta(pc):
             continue
 
-        if (
-            model_is_trait(pc)
-            and issubclass(pc, NonHeritableTrait)
-            and model not in get_direct_instantiations_of_trait(pc)
-        ):
-            continue
-
         filtered_parent_classes.append(pc)
 
     return filtered_parent_classes

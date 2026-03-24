@@ -1443,9 +1443,9 @@ def test_subclassing_field_from_heritable_trait():
     ]
 
 
-def test_subclass_inheriting_directly_from_non_heritable_trait():
+def test_subclass_inheriting_from_non_heritable_trait():
     class Purchaseable(NonHeritableTrait):
-        pass
+        amount: int
 
     class Dog(Entity, Purchaseable):
         pass
@@ -1457,7 +1457,14 @@ def test_subclass_inheriting_directly_from_non_heritable_trait():
         pass
 
     assert get_all_parent_classes(Dog) == [Purchaseable]
+    assert get_all_parent_classes(Beagle) == [Dog, Purchaseable]
+    assert get_all_parent_classes(model=SuperBeagle) == [Beagle, Dog, Purchaseable]
 
-    assert get_all_parent_classes(Beagle) == [Dog]
+    # Check Dog does have "amount" field as it inherits directly from Purchaseable
+    assert Dog._meta.fields["amount"]
 
-    assert get_all_parent_classes(model=SuperBeagle) == [Beagle, Dog]
+    # Check Beagle and SuperBeagle do not have "amont" field as not directly
+    # inheriting from Purchaseable
+    assert "amount" not in Beagle._meta.fields
+
+    assert "amount" not in SuperBeagle._meta.fields
