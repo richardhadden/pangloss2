@@ -12,7 +12,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.entity import Entity
 
 
-class TraitMeta[T: HeritableTrait | NonHeritableTrait](BaseMeta, DeclaredClassMeta):
+class TraitMeta[T: Trait | NonHeritableTrait](BaseMeta, DeclaredClassMeta):
     field_definitions: ModelFields = Field(default_factory=ModelFields)
     _owner_class: type[T] | InheritValue = InheritValue.AS_DEFAULT
 
@@ -26,7 +26,7 @@ class _Trait(_DeclaredClass):
     pass
 
 
-class HeritableTrait[T: Document | Entity](_Trait):
+class Trait[T: Document | Entity](_Trait):
     Meta: ClassVar[Any] = TraitMeta
     # _meta: ClassVar[EntityMeta] = TraitMeta[Self]()  # pyright: ignore[reportAssignmentType, reportIncompatibleVariableOverride]  # ty:ignore[invalid-assignment]
     _meta: Any

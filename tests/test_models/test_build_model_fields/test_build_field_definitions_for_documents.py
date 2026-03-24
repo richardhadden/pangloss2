@@ -40,7 +40,8 @@ from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
+from pangloss.model_setup.utils import get_all_parent_classes
 
 
 def test_meta_fields():
@@ -1354,7 +1355,7 @@ def test_subclass_does_not_raise_error_with_subtype():
 
 
 def test_fields_on_heritable_trait():
-    class Agent(HeritableTrait):
+    class Agent(Trait):
         name: str
 
     assert Agent._meta.fields
@@ -1380,7 +1381,7 @@ def test_fields_on_non_heritable_trait():
 
 
 def test_inheritance_from_trait():
-    class Agent(HeritableTrait):
+    class Agent(Trait):
         name: str
 
     class SubAgent(Agent):
@@ -1418,7 +1419,7 @@ def test_subclassing_field_from_heritable_trait():
     class Statement(Document):
         pass
 
-    class WithPrimaryAgent(HeritableTrait):
+    class WithPrimaryAgent(Trait):
         primary_agent: Dude
 
     class Action(Statement, WithPrimaryAgent):
@@ -1428,3 +1429,35 @@ def test_subclassing_field_from_heritable_trait():
                 subclasses_parent_fields=[FieldSubclassing("primary_agent")]
             ),
         ]
+
+    assert "primary_agent" not in Action._meta.fields
+
+    action_carried_out_by_person_field = Action._meta.fields["carried_out_by_person"]
+    assert isinstance(action_carried_out_by_person_field, RelationFieldDefinition)
+    assert action_carried_out_by_person_field.subclasses_parent_fields == [
+        FieldSubclassing(
+            field_name="primary_agent",
+            field_on_model=WithPrimaryAgent,
+            subclassed_field_definition=WithPrimaryAgent._meta.fields["primary_agent"],
+        )
+    ]
+
+
+def test_subclass_inheriting_directly_from_non_heritable_trait():
+    class Purchaseable(NonHeritableTrait):
+        pass
+
+    class Dog(Entity, Purchaseable):
+        pass
+
+    class Beagle(Dog):
+        pass
+
+    class SuperBeagle(Beagle):
+        pass
+
+    assert get_all_parent_classes(Dog) == [Purchaseable]
+
+    assert get_all_parent_classes(Beagle) == [Dog]
+
+    assert get_all_parent_classes(model=SuperBeagle) == [Beagle, Dog]

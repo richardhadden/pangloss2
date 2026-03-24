@@ -10,11 +10,11 @@ from pangloss.models import (
     EdgeModel,
     Embedded,
     Entity,
-    HeritableTrait,
     NonHeritableTrait,
     ReifiedRelation,
     ReifiedRelationDocument,
     SemanticSpace,
+    Trait,
 )
 
 
@@ -37,7 +37,7 @@ def test_register_models_with_model_manager():
     class Statement(Document):
         pass
 
-    class Agent(HeritableTrait):
+    class Agent(Trait):
         pass
 
     class Purchaseable(NonHeritableTrait):

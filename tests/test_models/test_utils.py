@@ -17,14 +17,15 @@ from pangloss.model_setup.model_bases.reified_relation import (
 from pangloss.model_setup.model_bases.relation import Relation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import (
-    HeritableTrait,
     NonHeritableTrait,
+    Trait,
     _Trait,
 )
 from pangloss.model_setup.utils import (
     generic_get_subclasses,
     get_all_parent_classes,
     get_concrete_types,
+    get_direct_instantiations_of_trait,
     get_parent_class,
     get_top_level_classes,
 )
@@ -150,7 +151,7 @@ def test_usable_declared_classes():
             ReifiedRelationDocument,
             SemanticSpace,
             Relation,
-            HeritableTrait,
+            Trait,
             NonHeritableTrait,
             _BaseObject,
             _DeclaredClass,
@@ -192,7 +193,7 @@ def test_get_all_parent_classes_with_heritable_trait():
     class Statement(Document):
         something: int
 
-    class WithPrimaryAgent(HeritableTrait):
+    class WithPrimaryAgent(Trait):
         pass
 
     class Action(Statement, WithPrimaryAgent):
@@ -202,3 +203,16 @@ def test_get_all_parent_classes_with_heritable_trait():
         pass
 
     assert get_all_parent_classes(Task) == [Action, Statement, WithPrimaryAgent]
+
+
+def test_is_subclass_of_heritable_trait():
+    class Purchaseable(NonHeritableTrait):
+        pass
+
+    class Dog(Entity, Purchaseable):
+        pass
+
+    class Beagle(Dog):
+        pass
+
+    assert get_direct_instantiations_of_trait(Purchaseable) == {Dog}

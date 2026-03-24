@@ -11,7 +11,7 @@ from pangloss.model_setup.model_bases.reified_relation import (
 )
 from pangloss.model_setup.model_bases.relation import Relation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
 
 ALL_MODELS = {
     AnnotatedValue,
@@ -20,7 +20,7 @@ ALL_MODELS = {
     EdgeModel,
     Embedded,
     Entity,
-    HeritableTrait,
+    Trait,
     NonHeritableTrait,
     ReifiedRelation,
     ReifiedRelationDocument,

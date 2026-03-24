@@ -17,8 +17,8 @@ from pangloss.model_setup.model_bases.reified_relation import (
 )
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import (
-    HeritableTrait,
     NonHeritableTrait,
+    Trait,
     _Trait,
 )
 
@@ -66,7 +66,7 @@ def get_concrete_types(
 
 @overload
 def get_concrete_types(
-    model: type[HeritableTrait | NonHeritableTrait],
+    model: type[Trait | NonHeritableTrait],
     include_abstract: bool = False,
 ) -> set[type[Document]] | set[type[Entity]]: ...
 
@@ -141,20 +141,20 @@ def generic_get_subclasses[
 
 
 def model_is_trait(
-    cls: type[_DeclaredClass] | type[HeritableTrait] | type[NonHeritableTrait],
+    cls: type[_DeclaredClass] | type[Trait] | type[NonHeritableTrait],
 ):
     """Determines whether a model is a Trait, or subclass of a Trait,
     rather than a _DeclaredClass type to which a Trait has been applied"""
 
     return (
         isclass(cls)
-        and issubclass(cls, (HeritableTrait, NonHeritableTrait))
+        and issubclass(cls, (Trait, NonHeritableTrait))
         and is_subclass_of_heritable_trait(cls)
     )
 
 
 def is_subclass_of_heritable_trait(
-    cls: type[HeritableTrait] | type[NonHeritableTrait],
+    cls: type[Trait] | type[NonHeritableTrait],
 ) -> bool:
     """Determine whether a class is a subclass of a Trait,
     not the application of a trait to a real Document or Entity class.
@@ -169,8 +169,8 @@ def is_subclass_of_heritable_trait(
 
 
 def get_trait_subclasses(
-    trait: type[HeritableTrait] | type[NonHeritableTrait],
-) -> set[type[HeritableTrait] | type[NonHeritableTrait]]:
+    trait: type[Trait] | type[NonHeritableTrait],
+) -> set[type[Trait] | type[NonHeritableTrait]]:
     """Get subclasses of a Trait that are Traits, not instantiations
     of a Trait"""
 
@@ -182,7 +182,7 @@ def get_trait_subclasses(
 
 
 def get_direct_instantiations_of_trait(
-    trait: type[HeritableTrait] | type[NonHeritableTrait],
+    trait: type[Trait] | type[NonHeritableTrait],
     follow_trait_subclasses: bool = False,
 ):
     """Given a Trait class, find the models to which it is *directly* applied,
@@ -216,7 +216,7 @@ def get_top_level_classes():
     usable_subclasses.remove(_Trait)
     usable_subclasses.extend(
         [
-            HeritableTrait,
+            Trait,
             NonHeritableTrait,
             BaseModel,
             _Trait,
@@ -262,8 +262,8 @@ def get_parent_class(model: type[Conjunction]) -> type[Conjunction] | None: ...
 
 @overload
 def get_parent_class(
-    model: type[HeritableTrait],
-) -> type[HeritableTrait] | None: ...
+    model: type[Trait],
+) -> type[Trait] | None: ...
 
 
 @overload
@@ -292,13 +292,13 @@ def get_parent_class(model) -> Any:
 @overload
 def get_all_parent_classes(
     model: type[Document],
-) -> list[type[Document] | type[HeritableTrait] | type[NonHeritableTrait]]: ...
+) -> list[type[Document] | type[Trait] | type[NonHeritableTrait]]: ...
 
 
 @overload
 def get_all_parent_classes(
     model: type[Entity],
-) -> list[type[Entity] | type[HeritableTrait] | type[NonHeritableTrait]]: ...
+) -> list[type[Entity] | type[Trait] | type[NonHeritableTrait]]: ...
 
 
 @overload
@@ -314,9 +314,7 @@ def get_all_parent_classes(
 @overload
 def get_all_parent_classes(
     model: type[ReifiedRelationDocument],
-) -> list[
-    type[ReifiedRelationDocument] | type[HeritableTrait] | type[NonHeritableTrait]
-]: ...
+) -> list[type[ReifiedRelationDocument] | type[Trait] | type[NonHeritableTrait]]: ...
 
 
 @overload
@@ -333,8 +331,8 @@ def get_all_parent_classes(
 
 @overload
 def get_all_parent_classes(
-    model: type[HeritableTrait],
-) -> list[type[HeritableTrait]]: ...
+    model: type[Trait],
+) -> list[type[Trait]]: ...
 
 
 @overload
@@ -356,21 +354,42 @@ def is_subclass_of_with_meta(cls):
     return False
 
 
+def class_is_direct_descendent_of_non_heritable_trait(
+    model, trait: type[NonHeritableTrait]
+) -> bool:
+    if not issubclass(trait, NonHeritableTrait):
+        return True
+
+    if model in get_direct_instantiations_of_trait(trait):
+        return True
+
+    return False
+
+
 def get_all_parent_classes(model):
     parent_classes = []
 
     for parent_class in model.mro():
-        print(parent_class)
         if parent_class is model:
             continue
         else:
             parent_classes.append(parent_class)
 
-    parent_classes = [
-        cls
-        for cls in parent_classes
-        if cls not in get_top_level_classes() and not is_subclass_of_with_meta(cls)
-    ]
-    print(parent_classes)
+    filtered_parent_classes = []
 
-    return parent_classes
+    for pc in parent_classes:
+        if pc in get_top_level_classes():
+            continue
+        if is_subclass_of_with_meta(pc):
+            continue
+
+        if (
+            model_is_trait(pc)
+            and issubclass(pc, NonHeritableTrait)
+            and model not in get_direct_instantiations_of_trait(pc)
+        ):
+            continue
+
+        filtered_parent_classes.append(pc)
+
+    return filtered_parent_classes

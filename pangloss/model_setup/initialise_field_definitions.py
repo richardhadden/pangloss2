@@ -481,12 +481,10 @@ def get_relation_config(field_info: FieldInfo) -> RelationConfig | None:
 def get_field_origin_model_and_definition(
     model: type[_DeclaredClass], field_name: str
 ) -> tuple[type[_DeclaredClass], FieldDefinition] | tuple[None, None]:
-    print("get_field_origin_model_and_definition", model, field_name)
 
     last_parent_with_field: type[_DeclaredClass] | None = None
 
     for parent_class in get_all_parent_classes(model):
-        print(parent_class)
         if field_name in parent_class.model_fields:
             last_parent_with_field = parent_class
         else:

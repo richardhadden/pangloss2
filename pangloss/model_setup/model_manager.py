@@ -27,12 +27,12 @@ if TYPE_CHECKING:
         EdgeModel,
         Embedded,
         Entity,
-        HeritableTrait,
         NonHeritableTrait,
         ReifiedRelation,
         ReifiedRelationDocument,
         Relation,
         SemanticSpace,
+        Trait,
     )
 
 type ModelTypes = (
@@ -41,7 +41,7 @@ type ModelTypes = (
     | EdgeModel
     | Embedded
     | Entity
-    | HeritableTrait
+    | Trait
     | NonHeritableTrait
     | ReifiedRelation
     | ReifiedRelationDocument
@@ -54,7 +54,7 @@ type IntialisationTypes = (
     | Document
     | Embedded
     | Entity
-    | HeritableTrait
+    | Trait
     | NonHeritableTrait
     | ReifiedRelation
     | SemanticSpace
@@ -130,7 +130,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
     _documents: dict[str, type[Document]] = {}
 
     _entities: dict[str, type[Entity]] = {}
-    _heritable_traits: dict[str, type[HeritableTrait]] = {}
+    _heritable_traits: dict[str, type[Trait]] = {}
     _non_heritable_traits: dict[str, type[NonHeritableTrait]] = {}
     _embedded: dict[str, type[Embedded]] = {}
     _reified_relations: dict[str, type[ReifiedRelation]] = {}
@@ -190,7 +190,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
         cls._documents: dict[str, type[Document]] = {}
         cls._entities: dict[str, type[Entity]] = {}
-        cls._heritable_traits: dict[str, type[HeritableTrait]] = {}
+        cls._heritable_traits: dict[str, type[Trait]] = {}
         cls._non_heritable_traits: dict[str, type[NonHeritableTrait]] = {}
         cls._embedded: dict[str, type[Embedded]] = {}
         cls._reified_relations: dict[str, type[ReifiedRelation]] = {}
@@ -222,7 +222,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         cls._embedded[model.__name__] = model
 
     @classmethod
-    def register_heritable_trait(cls, model: type[HeritableTrait]):
+    def register_heritable_trait(cls, model: type[Trait]):
         cls._heritable_traits[model.__name__] = model
 
     @classmethod
