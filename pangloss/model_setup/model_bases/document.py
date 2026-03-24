@@ -16,7 +16,6 @@ from pangloss.model_setup.model_bases.base_object import (
 
 
 class DocumentMeta(BaseMeta, DeclaredClassMeta):
-    _owner_class: type[Document] | InheritValue = InheritValue.AS_DEFAULT
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
     create_with_id: bool | InheritValue = InheritValue.AS_DEFAULT
     view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
@@ -26,6 +25,7 @@ class DocumentMeta(BaseMeta, DeclaredClassMeta):
         default_factory=list
     )
     field_definitions: ModelFields = Field(default_factory=ModelFields)
+    _owner_class: type[Document] | InheritValue = InheritValue.AS_DEFAULT
 
     @property
     def fields(self) -> dict[str, FieldDefinition]:

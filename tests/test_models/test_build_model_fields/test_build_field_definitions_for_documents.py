@@ -1381,24 +1381,30 @@ def test_fields_on_non_heritable_trait():
 
 def test_inheritance_from_trait():
     class Agent(HeritableTrait):
-        pass
+        name: str
 
-    class SubAgent(HeritableTrait):
-        pass
+    class SubAgent(Agent):
+        number: int
 
-    class Person(Entity, Agent):
-        pass
+    class Person(Entity, SubAgent):
+        _meta = Entity.Meta()
 
     class Group(Entity, Agent):
         _meta = Entity.Meta()
 
     class Statement(Document):
         _meta = Document.Meta(abstract=True)
-        pass
 
     class Action(Statement):
         pass
 
     assert Agent._meta._owner_class is Agent
     assert SubAgent._meta._owner_class is SubAgent
-    assert Person._meta._owner_class is Person
+
+    assert SubAgent._meta.fields["name"] == LiteralFieldDefinition(
+        field_on_model=SubAgent, field_name="name", annotated_type=str
+    )
+
+    assert Person._meta.fields["name"] == LiteralFieldDefinition(
+        field_on_model=Person, field_name="name", annotated_type=str
+    )
