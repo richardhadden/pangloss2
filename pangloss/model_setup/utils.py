@@ -1,9 +1,12 @@
 from functools import cache
 from inspect import isclass
 from types import UnionType
-from typing import Any, get_args, overload
+from typing import Any, Generic, get_args, overload
 
-from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pydantic import BaseModel
+from pydantic_meta_kit import WithMeta
+
+from pangloss.model_setup.model_bases.base_object import _BaseObject, _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.embedded import Embedded
@@ -208,10 +211,22 @@ def get_direct_instantiations_of_trait(
 
 
 @cache
-def get_usable_declared_classes():
-    usable_subclasses: list[type[_DeclaredClass]] = _DeclaredClass.__subclasses__()
+def get_top_level_classes():
+    usable_subclasses: list[type[Any]] = _DeclaredClass.__subclasses__()
     usable_subclasses.remove(_Trait)
-    usable_subclasses.extend([HeritableTrait, NonHeritableTrait])
+    usable_subclasses.extend(
+        [
+            HeritableTrait,
+            NonHeritableTrait,
+            BaseModel,
+            _Trait,
+            _DeclaredClass,
+            _BaseObject,
+            WithMeta,
+            Generic,  # pyright: ignore[reportArgumentType]
+            object,
+        ]
+    )
     return set(usable_subclasses)
 
 
@@ -267,7 +282,7 @@ def get_parent_class(model) -> Any:
     for parent_class in model.mro():
         if parent_class is model:
             continue
-        elif parent_class in get_usable_declared_classes():
+        elif parent_class in get_top_level_classes():
             return None
         else:
             return parent_class
@@ -334,14 +349,28 @@ def get_all_parent_classes[T](
 ) -> list[T]: ...
 
 
+def is_subclass_of_with_meta(cls):
+    if pgm := getattr(cls, "__pydantic_generic_metadata__", None):
+        if pgm["origin"] is WithMeta:
+            return True
+    return False
+
+
 def get_all_parent_classes(model):
     parent_classes = []
+
     for parent_class in model.mro():
+        print(parent_class)
         if parent_class is model:
             continue
-        elif parent_class in get_usable_declared_classes():
-            break
         else:
             parent_classes.append(parent_class)
+
+    parent_classes = [
+        cls
+        for cls in parent_classes
+        if cls not in get_top_level_classes() and not is_subclass_of_with_meta(cls)
+    ]
+    print(parent_classes)
 
     return parent_classes

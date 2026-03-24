@@ -1,5 +1,10 @@
 import datetime
+from typing import Generic
 
+from pydantic import BaseModel
+from pydantic_meta_kit import WithMeta
+
+from pangloss.model_setup.model_bases.base_object import _BaseObject, _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document, DocumentMeta
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
@@ -11,13 +16,17 @@ from pangloss.model_setup.model_bases.reified_relation import (
 )
 from pangloss.model_setup.model_bases.relation import Relation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.model_bases.trait import HeritableTrait, NonHeritableTrait
+from pangloss.model_setup.model_bases.trait import (
+    HeritableTrait,
+    NonHeritableTrait,
+    _Trait,
+)
 from pangloss.model_setup.utils import (
     generic_get_subclasses,
     get_all_parent_classes,
     get_concrete_types,
     get_parent_class,
-    get_usable_declared_classes,
+    get_top_level_classes,
 )
 
 
@@ -130,7 +139,7 @@ def test_get_concrete_types_with_semantic_spaces_does_not_return_parametrised():
 
 
 def test_usable_declared_classes():
-    assert get_usable_declared_classes() == set(
+    assert get_top_level_classes() == set(
         [
             Conjunction,
             Document,
@@ -143,6 +152,13 @@ def test_usable_declared_classes():
             Relation,
             HeritableTrait,
             NonHeritableTrait,
+            _BaseObject,
+            _DeclaredClass,
+            WithMeta,
+            _Trait,
+            BaseModel,
+            object,
+            Generic,
         ]
     )
 
@@ -170,3 +186,19 @@ def test_get_all_parent_classes():
         pass
 
     assert get_all_parent_classes(Task) == [Action, Statement]
+
+
+def test_get_all_parent_classes_with_heritable_trait():
+    class Statement(Document):
+        something: int
+
+    class WithPrimaryAgent(HeritableTrait):
+        pass
+
+    class Action(Statement, WithPrimaryAgent):
+        pass
+
+    class Task(Action):
+        pass
+
+    assert get_all_parent_classes(Task) == [Action, Statement, WithPrimaryAgent]

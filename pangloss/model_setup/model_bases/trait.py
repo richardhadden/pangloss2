@@ -37,8 +37,6 @@ class HeritableTrait[T: Document | Entity](_Trait):
 
         cls._initialised = False
 
-        print(cls.__name__, cls.__dict__)
-
         # Make sure _meta class is new and not inherited
         cls._meta = TraitMeta[Self]()
         # Set owner class on cls._meta

@@ -1408,3 +1408,23 @@ def test_inheritance_from_trait():
     assert Person._meta.fields["name"] == LiteralFieldDefinition(
         field_on_model=Person, field_name="name", annotated_type=str
     )
+
+
+def test_subclassing_field_from_heritable_trait():
+
+    class Dude(Entity):
+        pass
+
+    class Statement(Document):
+        pass
+
+    class WithPrimaryAgent(HeritableTrait):
+        primary_agent: Dude
+
+    class Action(Statement, WithPrimaryAgent):
+        carried_out_by_person: Annotated[
+            Dude,
+            RelationConfig(
+                subclasses_parent_fields=[FieldSubclassing("primary_agent")]
+            ),
+        ]
