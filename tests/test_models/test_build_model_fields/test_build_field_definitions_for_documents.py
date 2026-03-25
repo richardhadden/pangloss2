@@ -1265,7 +1265,11 @@ def test_get_fields_with_overridden():
     class Action(Statement):
         carried_out_by_person: Annotated[
             Person,
-            RelationConfig(subclasses_parent_fields=[FieldSubclassing("actor")]),
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing("actor", field_on_model=Statement)
+                ]
+            ),
         ]
         carried_out_when: datetime
         carried_out_where: Annotated[
@@ -1295,6 +1299,61 @@ def test_get_fields_with_overridden():
     ]
 
 
+def test_get_fields_with_two_overriddens():
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    class PersonInLocation(Document):
+        person: Person
+        place: Place
+
+    class WithPrimaryPerson(Document):
+        person: Person
+
+    class Statement(Document):
+        pass
+
+    class Action(Statement, PersonInLocation, WithPrimaryPerson):
+        person_carrying_out_action: Annotated[
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing(
+                        field_name="person", field_on_model=PersonInLocation
+                    ),
+                    FieldSubclassing(
+                        field_name="person", field_on_model=WithPrimaryPerson
+                    ),
+                ]
+            ),
+        ]
+
+    action_person_carrying_out_action = Action._meta.fields[
+        "person_carrying_out_action"
+    ]
+    assert action_person_carrying_out_action
+    assert isinstance(action_person_carrying_out_action, RelationFieldDefinition)
+    assert set(action_person_carrying_out_action.subclasses_parent_fields) == set(
+        [
+            FieldSubclassing(
+                field_name="person",
+                disambiguator=None,
+                field_on_model=PersonInLocation,
+                subclassed_field_definition=PersonInLocation._meta.fields["person"],
+            ),
+            FieldSubclassing(
+                field_name="person",
+                disambiguator=None,
+                field_on_model=WithPrimaryPerson,
+                subclassed_field_definition=WithPrimaryPerson._meta.fields["person"],
+            ),
+        ]
+    )
+
+
 def test_get_fields_with_overridden_raises_error_if_no_such_field():
     with pytest.raises(PanglossModelError):
 
@@ -1305,7 +1364,9 @@ def test_get_fields_with_overridden_raises_error_if_no_such_field():
             carried_out_by_person: Annotated[
                 Person,
                 RelationConfig(
-                    subclasses_parent_fields=[FieldSubclassing("WRONG_FIELD_NAME")]
+                    subclasses_parent_fields=[
+                        FieldSubclassing("WRONG_FIELD_NAME", field_on_model=Statement)
+                    ]
                 ),
             ]
 
@@ -1325,7 +1386,11 @@ def test_subclass_raises_error_if_type_not_narrowed():
         class Action(Statement):
             carried_out_by_person: Annotated[
                 Place,
-                RelationConfig(subclasses_parent_fields=[FieldSubclassing("actor")]),
+                RelationConfig(
+                    subclasses_parent_fields=[
+                        FieldSubclassing("actor", field_on_model=Statement)
+                    ]
+                ),
             ]
 
         class Person(Entity):
@@ -1348,7 +1413,11 @@ def test_subclass_does_not_raise_error_with_subtype():
     class Action(Statement):
         carried_out_by_person: Annotated[
             Dude,
-            RelationConfig(subclasses_parent_fields=[FieldSubclassing("actor")]),
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing("actor", field_on_model=Statement)
+                ]
+            ),
         ]
 
     class Dude(Person):
@@ -1427,7 +1496,9 @@ def test_subclassing_field_from_heritable_trait():
         carried_out_by_person: Annotated[
             Dude,
             RelationConfig(
-                subclasses_parent_fields=[FieldSubclassing("primary_agent")]
+                subclasses_parent_fields=[
+                    FieldSubclassing("primary_agent", field_on_model=WithPrimaryAgent)
+                ]
             ),
         ]
 
@@ -1500,8 +1571,6 @@ def test_field_required_to_fulfil_inherited_field():
         FieldFulfilment(field_name="place", fulfils_class=PersonInLocation)
     ]
 
-    assert False
-
 
 def test_field_required_to_fulfil_subclassed_field():
     class Person(Entity):
@@ -1514,10 +1583,26 @@ def test_field_required_to_fulfil_subclassed_field():
         person: Person
         place: Place
 
+    class WithPrimaryPerson(Document):
+        person: Person
+
     class Statement(Document):
         pass
 
     class Action(Document, Fulfils[PersonInLocation]):
         person_carrying_out_action: Annotated[
-            Person, RelationConfig(subclasses_parent_fields=["person"])
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing(
+                        field_name="person", field_on_model=PersonInLocation
+                    ),
+                    FieldSubclassing(
+                        field_name="person", field_on_model=WithPrimaryPerson
+                    ),
+                ]
+            ),
         ]
+
+    assert "person" not in Action._meta.fields
+    assert Action._meta.fields["person_carrying_out_action"].field_required_to_fulfil

@@ -494,7 +494,10 @@ def get_field_origin_model_and_definition(
     for parent_class in get_all_parent_classes(model):
         if parent_class.__pydantic_generic_metadata__["origin"] is Fulfils:
             fulfiled_class = parent_class.__pydantic_generic_metadata__["args"][0]
-            if field_name in fulfiled_class.model_fields:
+            if (
+                issubclass(fulfiled_class, _DeclaredClass)
+                and field_name in fulfiled_class.model_fields
+            ):
                 last_parent_with_field = fulfiled_class
         elif field_name in parent_class.model_fields:
             last_parent_with_field = parent_class
@@ -517,21 +520,21 @@ def normalise_and_get_subclassed_fields(
             field_subclassings = []
             for field_subclassing in relation_config.subclasses_parent_fields:
                 if isinstance(field_subclassing, FieldSubclassing):
-                    origin_class, definition = get_field_origin_model_and_definition(
-                        model, field_subclassing.field_name
-                    )
-
-                    if not origin_class:
+                    if (
+                        field_subclassing.field_name
+                        not in field_subclassing.field_on_model.model_fields
+                    ):
                         raise PanglossModelError(
-                            f"{model.__name__}.{field_name} is trying to subclass a field ('{field_subclassing.field_name}') that does not exist on a parent class"
+                            f"{model.__name__}.{field_name} is trying to subclass a field ('{field_subclassing}') that does not exist on a parent class"
                         )
 
                     subclassed_fields[field_subclassing.field_name] = FieldSubclassing(
                         field_name=field_subclassing.field_name,
                         disambiguator=field_subclassing.disambiguator,
-                        field_on_model=field_subclassing.field_on_model or origin_class,
-                        subclassed_field_definition=field_subclassing.subclassed_field_definition
-                        or definition,
+                        field_on_model=field_subclassing.field_on_model,
+                        subclassed_field_definition=field_subclassing.field_on_model._meta.fields[
+                            field_subclassing.field_name
+                        ],
                     )
                     field_subclassings.append(
                         subclassed_fields[field_subclassing.field_name]
@@ -587,7 +590,7 @@ def get_fields_on_model(model: type[_DeclaredClass]):
         ):
             continue
 
-        yield field_name, field_info, None, None
+        yield field_name, field_info, None
 
     fulfilments = [
         f
@@ -602,7 +605,11 @@ def get_fields_on_model(model: type[_DeclaredClass]):
             if field_name in subclassed_fields:
                 continue
 
-            yield field_name, field_info, fulfilled_type, field_name
+            yield (
+                field_name,
+                field_info,
+                FieldFulfilment(field_name=field_name, fulfils_class=fulfilled_type),
+            )
 
 
 def check_subclass_type(field_definition: RelationFieldDefinition):
@@ -646,12 +653,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     f"EdgeModel {model.__name__} does not support relations ({model.__name__}.{field_name})"
                 )
 
-    for (
-        field_name,
-        field_info,
-        model_required_to_fulfil,
-        model_field_required_to_fulfil,
-    ) in get_fields_on_model(model):
+    for field_name, field_info, field_fulfilment in get_fields_on_model(model):
         print(
             ">>",
             model.__name__,

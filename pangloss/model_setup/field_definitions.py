@@ -84,9 +84,15 @@ class EmbeddedOption:
 @dataclass(frozen=True)
 class FieldSubclassing:
     field_name: str
+
+    field_on_model: type[_DeclaredClass]
     disambiguator: str | None = None
-    field_on_model: type[_DeclaredClass] | None = None
     subclassed_field_definition: FieldDefinition | None = None
+
+    def __hash__(self):
+        return (
+            hash(self.field_name) + hash(self.disambiguator) + hash(self.field_on_model)
+        )
 
 
 @dataclass(frozen=True, kw_only=True)
