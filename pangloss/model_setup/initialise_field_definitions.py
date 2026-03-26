@@ -68,6 +68,15 @@ from pangloss.model_setup.utils import (
 def build_list_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> ListFieldDefinition:
+    """Build a list field definition for a literal typed list.
+
+    This function validates that the annotation is a list of a literal type
+    (for example, `list[int]` with `Literal` style supported types) and
+    constructs a `ListFieldDefinition` including inner type metadata.
+
+    Raises:
+        PanglossModelError: when field annotation is not a valid literal list.
+    """
     try:
         assert field_info.annotation
         list_inner_type_tuple: tuple[Any, ...] = get_args(field_info.annotation)
@@ -104,6 +113,18 @@ def build_relation_options(
     annotation: TRelationFieldDefinitionAnnotation,
     edge_model: type[EdgeModel] | None = None,
 ) -> set[RelationOption]:
+    """Resolve a relation annotation into one or more relation options.
+
+    Traverses the relation annotation, potentially handling
+    - Union[...]
+    - ReifiedRelation[T]
+    - SemanticSpace[T]
+    - Conjunction[T]
+    - Document and Entity relations
+
+    Adds dependency records to `model.depends_on_classes`, and returns the
+    set of Matching `RelationOption` objects for the annotation.
+    """
     relation_options = []
 
     if is_via_edge(annotation):
@@ -207,6 +228,16 @@ def build_relation_options(
 def build_relatable_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> RelationFieldDefinition:
+    """Build a RelationFieldDefinition from model field metadata.
+
+    Supports t:
+    - TypeVar relation annotations
+    - list[T] relations
+    - named relation model types (Document/Entity/Relation etc.)
+
+    Applies relation subclassing hints from relation config and updates
+    `model.depends_on_classes`.
+    """
 
     relation_config = extract_relation_config(field_info)
 
@@ -306,6 +337,11 @@ def build_relatable_field_definition(
 def build_embedded_field_definition(
     field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
 ) -> EmbeddedFieldDefinition:
+    """Construct an embedded field definition for Embedded or union embedded.
+
+    Validates the annotation resolves into concrete embedded candidates and
+    returns an `EmbeddedFieldDefinition` with concrete options.
+    """
     if TYPE_CHECKING:
         assert is_embedded(field_info.annotation) or is_union_of_embedded(
             field_info.annotation
@@ -331,6 +367,11 @@ def build_embedded_field_definition(
 def get_field_origin_model_and_definition(
     model: type[_DeclaredClass], field_name: str
 ) -> list[tuple[type[_DeclaredClass], FieldDefinition]] | None:
+    """Find all parent models (including traits) that define a given field.
+
+    Returns a list of (origin_model, field_definition) tuples for each parent
+    class where `field_name` is present. Used to resolve subclassed fields.
+    """
 
     parents_with_field: list[tuple[type[_DeclaredClass], FieldDefinition]] = []
 
@@ -359,6 +400,11 @@ def get_field_origin_model_and_definition(
 def recursively_add_field_subclassings(
     field_subclassings: set[FieldSubclassing], definition: FieldDefinition
 ) -> None:
+    """Collect all transitive subclassed relation fields into `field_subclassings`.
+
+    Traverses a `RelationFieldDefinition` and its nested parent-field subclassing
+    tree, ensuring all indirect subclassing requirements are included.
+    """
     if isinstance(definition, RelationFieldDefinition):
         for spf in definition.subclasses_parent_fields:
             assert isinstance(spf, FieldSubclassing)
@@ -373,6 +419,11 @@ def recursively_add_field_subclassings(
 def normalise_and_get_subclassed_fields(
     model: type[_DeclaredClass],
 ) -> dict[str, FieldSubclassing]:
+    """Normalize relation subclass declarations from model fields.
+
+    For each field with relation config subclass declarations, validate the
+    target field exists and generate a set of `FieldSubclassing` objects.
+    """
 
     subclassed_fields = {}
     for field_name, field_info in model.model_fields.items():
@@ -434,6 +485,11 @@ def normalise_and_get_subclassed_fields(
 
 
 def field_is_from_indirect_non_heritable_model(model: type[_DeclaredClass], field_name):
+    """Check whether the field comes from an indirect non-heritable trait.
+
+    Non-heritable trait fields should not be inherited through an indirect path.
+    Returns True if the field exists in an indirect non-heritable trait.
+    """
     parent_classes = get_all_parent_classes(model)
     indirect_non_heritable_classes: list[type[NonHeritableTrait]] = [
         pc
@@ -449,6 +505,7 @@ def field_is_from_indirect_non_heritable_model(model: type[_DeclaredClass], fiel
 
 
 def get_fulfiled_types(model: type[_DeclaredClass]) -> set[type[_DeclaredClass]]:
+    """Return all types fulfilled by `model` via `Fulfils` parent classes."""
     fulfilled_types = set()
     fulfilments = [f for f in get_all_parent_classes(model) if issubclass(f, Fulfils)]
 
@@ -522,7 +579,12 @@ def get_fields_on_model(model: type[_DeclaredClass]):
 
 
 def check_subclass_type(field_definition: RelationFieldDefinition):
-    """Given a completed field definition, checks that the"""
+    """Validate that subclassed relation field types are compatible.
+
+    For each declared subclassing (from parent field relations), ensure the
+    concrete type options of the child field are a subset of the parent.
+    Raises a `PanglossModelError` if the type narrowing contract is violated.
+    """
     for spf in field_definition.subclasses_parent_fields:
         assert isinstance(spf, FieldSubclassing)
         assert isinstance(spf.subclassed_field_definition, RelationFieldDefinition)
@@ -548,6 +610,14 @@ def check_subclass_type(field_definition: RelationFieldDefinition):
 
 
 def initialise_field_definitions(model: type[_DeclaredClass]):
+    """Initialise and register field definitions for the model.
+
+    Iterates through all fields (including inherited fulfilments) and creates the
+    appropriate field definitions, including literal/list/embedded/relation
+    field types, while applying subclassing rules and relation config.
+
+    The function is safe to call on a class without `_meta` and will no-op.
+    """
     print("========= Initialising", model.__name__, " =========")
     # TODO: REMOVE THIS HOOK WHEN ALL MODELS HAVE A META CLASS!!
     if not hasattr(model, "_meta"):
