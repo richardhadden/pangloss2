@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, kw_only=True)
 class FieldFulfilment:
+    """For a given field, describes which parent fields of a class
+    subclassed with `Fulfils[Class]` will fulfil"""
+
     field_name: str
     fulfils_class: type[_DeclaredClass]
 
@@ -34,8 +37,8 @@ class FieldDefinition:
     field_on_model: type[_DeclaredClass]
     field_name: str
     annotated_type: type[_DeclaredClass | BaseTypes | list]
-    field_required_to_fulfil: list[FieldFulfilment] = dataclass_field(
-        default_factory=list
+    field_required_to_fulfil: set[FieldFulfilment] = dataclass_field(
+        default_factory=set
     )
 
     @property
@@ -87,7 +90,28 @@ class FieldSubclassing:
 
     field_on_model: type[_DeclaredClass]
     disambiguator: str | None = None
-    subclassed_field_definition: FieldDefinition | None = None
+    subclassed_field_definition: FieldDefinition | None = dataclass_field(
+        default=None, init=False
+    )
+
+    def __post_init__(self):
+        """This class can be initialised by the user in defintions; however,
+        it is always automatically recreated by the initialisation process
+        in an updated and consistent form with all fields complete, including
+        `subclassed_field_definition`, which is set here.
+
+        However, when created by the user, `self.field_on_model` may not
+        be initialised at this point, throwing a key error. We are safe
+        to ignore this.
+        """
+        try:
+            object.__setattr__(
+                self,
+                "subclassed_field_definition",
+                self.field_on_model._meta.fields[self.field_name],
+            )
+        except KeyError:
+            pass
 
     def __hash__(self):
         return (
@@ -97,10 +121,10 @@ class FieldSubclassing:
 
 @dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):
-    annotated_type: TRelationFieldDefinitionAnnotation
+    annotated_type: TRelationFieldDefinitionAnnotation  # pyright: ignore[reportIncompatibleVariableOverride]
     type_options: set[RelationOption] = dataclass_field(default_factory=set)
     reverse_name: str
-    subclasses_parent_fields: list[str | FieldSubclassing]
+    subclasses_parent_fields: set[str | FieldSubclassing]
     wrapper: type[list | tuple] | None = None
 
 

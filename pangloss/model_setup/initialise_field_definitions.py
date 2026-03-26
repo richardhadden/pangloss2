@@ -358,9 +358,9 @@ def build_relatable_field_definition(
     relation_config = extract_relation_config(field_info)
 
     if relation_config:
-        field_subclassings = relation_config.subclasses_parent_fields
+        field_subclassings = set(relation_config.subclasses_parent_fields)
     else:
-        field_subclassings = []
+        field_subclassings = set()
 
     reverse_name = (
         relation_config.reverse_name
@@ -487,37 +487,54 @@ def get_relation_config(field_info: FieldInfo) -> RelationConfig | None:
 
 def get_field_origin_model_and_definition(
     model: type[_DeclaredClass], field_name: str
-) -> tuple[type[_DeclaredClass], FieldDefinition] | tuple[None, None]:
+) -> list[tuple[type[_DeclaredClass], FieldDefinition]] | None:
 
-    last_parent_with_field: type[_DeclaredClass] | None = None
+    parents_with_field: list[tuple[type[_DeclaredClass], FieldDefinition]] = []
 
     for parent_class in get_all_parent_classes(model):
-        if parent_class.__pydantic_generic_metadata__["origin"] is Fulfils:
-            fulfiled_class = parent_class.__pydantic_generic_metadata__["args"][0]
-            if (
-                issubclass(fulfiled_class, _DeclaredClass)
-                and field_name in fulfiled_class.model_fields
-            ):
-                last_parent_with_field = fulfiled_class
+        if get_origin(parent_class) is Fulfils:
+            fulfiled_classes = get_args(parent_class)
+            for fulfiled_class in fulfiled_classes:
+                if (
+                    issubclass(fulfiled_class, _DeclaredClass)
+                    and field_name in fulfiled_class.model_fields
+                ):
+                    parents_with_field.append(
+                        (fulfiled_class, fulfiled_class._meta.fields[field_name])
+                    )
         elif field_name in parent_class.model_fields:
-            last_parent_with_field = parent_class
+            parents_with_field.append(
+                (parent_class, parent_class._meta.fields[field_name])
+            )
 
         else:
             continue
 
-    if last_parent_with_field:
-        return last_parent_with_field, last_parent_with_field._meta.fields[field_name]
+    return parents_with_field
 
-    return None, None
+
+def recursively_add_field_subclassings(
+    field_subclassings: set[FieldSubclassing], definition: FieldDefinition
+) -> None:
+    if isinstance(definition, RelationFieldDefinition):
+        for spf in definition.subclasses_parent_fields:
+            assert isinstance(spf, FieldSubclassing)
+            assert spf.subclassed_field_definition
+            field_subclassings.add(spf)
+            recursively_add_field_subclassings(
+                field_subclassings=field_subclassings,
+                definition=spf.subclassed_field_definition,
+            )
 
 
 def normalise_and_get_subclassed_fields(
     model: type[_DeclaredClass],
 ) -> dict[str, FieldSubclassing]:
+
     subclassed_fields = {}
     for field_name, field_info in model.model_fields.items():
         if relation_config := get_relation_config(field_info):
-            field_subclassings = []
+            field_subclassings: set[FieldSubclassing] = set()
             for field_subclassing in relation_config.subclasses_parent_fields:
                 if isinstance(field_subclassing, FieldSubclassing):
                     if (
@@ -528,37 +545,48 @@ def normalise_and_get_subclassed_fields(
                             f"{model.__name__}.{field_name} is trying to subclass a field ('{field_subclassing}') that does not exist on a parent class"
                         )
 
+                    recursively_add_field_subclassings(
+                        field_subclassings,
+                        field_subclassing.field_on_model._meta.fields[
+                            field_subclassing.field_name
+                        ],
+                    )
+
                     subclassed_fields[field_subclassing.field_name] = FieldSubclassing(
                         field_name=field_subclassing.field_name,
                         disambiguator=field_subclassing.disambiguator,
                         field_on_model=field_subclassing.field_on_model,
-                        subclassed_field_definition=field_subclassing.field_on_model._meta.fields[
-                            field_subclassing.field_name
-                        ],
-                    )
-                    field_subclassings.append(
-                        subclassed_fields[field_subclassing.field_name]
-                    )
-                else:
-                    assert isinstance(field_subclassing, str)
-                    origin_class, definition = get_field_origin_model_and_definition(
-                        model, field_subclassing
                     )
 
-                    if not origin_class:
+                    field_subclassings.add(
+                        subclassed_fields[field_subclassing.field_name]
+                    )
+
+                else:
+                    assert isinstance(field_subclassing, str)
+                    origin_classes_and_definitions = (
+                        get_field_origin_model_and_definition(model, field_subclassing)
+                    )
+
+                    if not origin_classes_and_definitions:
                         raise PanglossModelError(
                             f"{model.__name__}.{field_name} is trying to subclass a field ('{field_subclassing}') that does not exist on a parent class"
                         )
 
-                    subclassed_fields[field_subclassing] = FieldSubclassing(
-                        field_subclassing,
-                        disambiguator=None,
-                        field_on_model=origin_class,
-                        subclassed_field_definition=definition,
-                    )
-                    field_subclassings.append(subclassed_fields[field_subclassing])
+                    for origin_class, definition in origin_classes_and_definitions:
+                        if definition:
+                            recursively_add_field_subclassings(
+                                field_subclassings, definition
+                            )
 
-            relation_config.subclasses_parent_fields = field_subclassings
+                        subclassed_fields[field_subclassing] = FieldSubclassing(
+                            field_subclassing,
+                            disambiguator=None,
+                            field_on_model=origin_class,
+                        )
+                        field_subclassings.add(subclassed_fields[field_subclassing])
+
+            relation_config.subclasses_parent_fields = list(field_subclassings)
     return subclassed_fields
 
 
@@ -577,39 +605,77 @@ def field_is_from_indirect_non_heritable_model(model: type[_DeclaredClass], fiel
     return False
 
 
+def get_fulfiled_types(model: type[_DeclaredClass]) -> set[type[_DeclaredClass]]:
+    fulfilled_types = set()
+    fulfilments = [f for f in get_all_parent_classes(model) if issubclass(f, Fulfils)]
+
+    for f in fulfilments:
+        fulfilled_types.update(f._fulfiling_types)
+
+    return fulfilled_types
+
+
 def get_fields_on_model(model: type[_DeclaredClass]):
-    """Yields an iterable of field name and field info for a model, removing subclassed
+    """Yields an iterable of field name, field info and set of FieldFulfilment objects for a model, removing subclassed
     fields"""
 
     subclassed_fields = normalise_and_get_subclassed_fields(model)
+
+    fulfiled_types = get_fulfiled_types(model)
+
+    for ft in fulfiled_types:
+        subclassed_fields.update(normalise_and_get_subclassed_fields(ft))
+
+    fulfilled_field_names = []
+    for ft in fulfiled_types:
+        fulfilled_field_names.extend(ft.model_fields.keys())
+
+    for field_name in fulfilled_field_names:
+        if field_name in ("type", "fulfiling_types"):
+            continue
+
+        if field_name in subclassed_fields:
+            continue
+
+        yield (
+            field_name,
+            [
+                ft.model_fields[field_name]
+                for ft in fulfiled_types
+                if field_name in ft.model_fields
+            ][0],
+            set(
+                FieldFulfilment(field_name=field_name, fulfils_class=ft)
+                for ft in fulfiled_types
+                if field_name in ft.model_fields
+            ),
+        )
 
     for field_name, field_info in model.model_fields.items():
         if (
             field_name in subclassed_fields
             or field_is_from_indirect_non_heritable_model(model, field_name)
         ):
+            print("??fn", field_name)
             continue
 
-        yield field_name, field_info, None
+        config = get_relation_config(field_info)
 
-    fulfilments = [
-        f
-        for f in get_all_parent_classes(model)
-        if issubclass(f, Fulfils) and f.__pydantic_generic_metadata__["args"]
-    ]
-    for f in fulfilments:
-        fulfilled_type: type[_DeclaredClass] = f.__pydantic_generic_metadata__["args"][
-            0
-        ]
-        for field_name, field_info in fulfilled_type.model_fields.items():
-            if field_name in subclassed_fields:
-                continue
-
+        if config:
             yield (
                 field_name,
                 field_info,
-                FieldFulfilment(field_name=field_name, fulfils_class=fulfilled_type),
+                set(
+                    FieldFulfilment(
+                        field_name=fsc.field_name, fulfils_class=fsc.field_on_model
+                    )
+                    for fsc in config.subclasses_parent_fields
+                    if isinstance(fsc, FieldSubclassing)
+                    and fsc.field_on_model in fulfiled_types
+                ),
             )
+        else:
+            yield field_name, field_info, set()
 
 
 def check_subclass_type(field_definition: RelationFieldDefinition):
@@ -639,7 +705,7 @@ def check_subclass_type(field_definition: RelationFieldDefinition):
 
 
 def initialise_field_definitions(model: type[_DeclaredClass]):
-
+    print("========= Initialising", model.__name__, " =========")
     # TODO: REMOVE THIS HOOK WHEN ALL MODELS HAVE A META CLASS!!
     if not hasattr(model, "_meta"):
         return
@@ -654,16 +720,10 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 )
 
     for field_name, field_info, field_fulfilment in get_fields_on_model(model):
-        print(
-            ">>",
-            model.__name__,
-            field_name,
-            model_required_to_fulfil,
-            model_field_required_to_fulfil,
-        )
-
         if field_name == "type":
             continue
+
+        print(field_name)
 
         if (
             issubclass(model, SemanticSpace)
@@ -714,15 +774,12 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             field_info.annotation
         ):
             field_definition = build_relatable_field_definition(
-                field_name, field_info, model
+                field_name,
+                field_info,
+                model,
             )
-            if model_field_required_to_fulfil and model_required_to_fulfil:
-                field_definition.field_required_to_fulfil.append(
-                    FieldFulfilment(
-                        field_name=model_field_required_to_fulfil,
-                        fulfils_class=model_required_to_fulfil,
-                    )
-                )
+            if field_fulfilment:
+                field_definition.field_required_to_fulfil.update(field_fulfilment)
 
             check_subclass_type(field_definition)
 

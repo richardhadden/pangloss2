@@ -1250,7 +1250,7 @@ def test_get_fields_basic():
     class Place(Entity):
         pass
 
-    assert list(field_name for field_name, _, _, _ in get_fields_on_model(Action)) == [
+    assert list(field_name for field_name, _, _ in get_fields_on_model(Action)) == [
         "carried_out_by_person",
         "carried_out_when",
         "carried_out_where",
@@ -1282,7 +1282,7 @@ def test_get_fields_with_overridden():
     class Place(Entity):
         pass
 
-    assert list(field_name for field_name, _, _, _ in get_fields_on_model(Action)) == [
+    assert list(field_name for field_name, _, _ in get_fields_on_model(Action)) == [
         "carried_out_by_person",
         "carried_out_when",
         "carried_out_where",
@@ -1290,13 +1290,14 @@ def test_get_fields_with_overridden():
 
     action_carried_out_by_person_field = Action._meta.fields["carried_out_where"]
     assert isinstance(action_carried_out_by_person_field, RelationFieldDefinition)
-    assert action_carried_out_by_person_field.subclasses_parent_fields == [
-        FieldSubclassing(
-            field_name="location",
-            field_on_model=Statement,
-            subclassed_field_definition=Statement._meta.fields["location"],
-        )
-    ]
+    assert action_carried_out_by_person_field.subclasses_parent_fields == set(
+        [
+            FieldSubclassing(
+                field_name="location",
+                field_on_model=Statement,
+            )
+        ]
+    )
 
 
 def test_get_fields_with_two_overriddens():
@@ -1342,13 +1343,11 @@ def test_get_fields_with_two_overriddens():
                 field_name="person",
                 disambiguator=None,
                 field_on_model=PersonInLocation,
-                subclassed_field_definition=PersonInLocation._meta.fields["person"],
             ),
             FieldSubclassing(
                 field_name="person",
                 disambiguator=None,
                 field_on_model=WithPrimaryPerson,
-                subclassed_field_definition=WithPrimaryPerson._meta.fields["person"],
             ),
         ]
     )
@@ -1506,13 +1505,14 @@ def test_subclassing_field_from_heritable_trait():
 
     action_carried_out_by_person_field = Action._meta.fields["carried_out_by_person"]
     assert isinstance(action_carried_out_by_person_field, RelationFieldDefinition)
-    assert action_carried_out_by_person_field.subclasses_parent_fields == [
-        FieldSubclassing(
-            field_name="primary_agent",
-            field_on_model=WithPrimaryAgent,
-            subclassed_field_definition=WithPrimaryAgent._meta.fields["primary_agent"],
-        )
-    ]
+    assert action_carried_out_by_person_field.subclasses_parent_fields == set(
+        [
+            FieldSubclassing(
+                field_name="primary_agent",
+                field_on_model=WithPrimaryAgent,
+            )
+        ]
+    )
 
 
 def test_subclass_inheriting_from_non_heritable_trait():
@@ -1561,15 +1561,150 @@ def test_field_required_to_fulfil_inherited_field():
 
     action_person_field = Action._meta.fields["person"]
     assert isinstance(action_person_field, RelationFieldDefinition)
-    assert action_person_field.field_required_to_fulfil == [
-        FieldFulfilment(field_name="person", fulfils_class=PersonInLocation)
-    ]
+    assert action_person_field.field_required_to_fulfil == set(
+        [FieldFulfilment(field_name="person", fulfils_class=PersonInLocation)]
+    )
 
     action_place_field = Action._meta.fields["place"]
     assert isinstance(action_place_field, RelationFieldDefinition)
-    assert action_place_field.field_required_to_fulfil == [
-        FieldFulfilment(field_name="place", fulfils_class=PersonInLocation)
+    assert action_place_field.field_required_to_fulfil == set(
+        [FieldFulfilment(field_name="place", fulfils_class=PersonInLocation)]
+    )
+
+
+def test_field_subclassing_is_chain_of_subclassings_with_string_names():
+    class Statement(Document):
+        person: Person
+
+    class Action(Statement):
+        person_performing_action: Annotated[
+            Person, RelationConfig(subclasses_parent_fields=["person"])
+        ]
+
+    class MusicalPerformance(Action):
+        person_performing_music: Annotated[
+            Person,
+            RelationConfig(subclasses_parent_fields=["person_performing_action"]),
+        ]
+
+    class Person(Entity):
+        pass
+
+    assert "person" not in Action._meta.fields
+
+    action_person_performing_action_field = Action._meta.fields[
+        "person_performing_action"
     ]
+    assert isinstance(action_person_performing_action_field, RelationFieldDefinition)
+    assert action_person_performing_action_field.subclasses_parent_fields == set(
+        [
+            FieldSubclassing(
+                field_name="person",
+                field_on_model=Statement,
+                disambiguator=None,
+            )
+        ]
+    )
+    assert "person_performing_action" not in MusicalPerformance._meta.fields
+    assert "person" not in MusicalPerformance._meta.fields
+
+    musical_performance_person_performing_music_field = MusicalPerformance._meta.fields[
+        "person_performing_music"
+    ]
+    assert isinstance(
+        musical_performance_person_performing_music_field, RelationFieldDefinition
+    )
+
+    assert (
+        len(musical_performance_person_performing_music_field.subclasses_parent_fields)
+        == 2
+    )
+    assert (
+        musical_performance_person_performing_music_field.subclasses_parent_fields
+        == set(
+            [
+                FieldSubclassing(
+                    field_name="person",
+                    field_on_model=Statement,
+                ),
+                FieldSubclassing(
+                    field_name="person_performing_action",
+                    field_on_model=Action,
+                ),
+            ]
+        )
+    )
+
+
+def test_field_subclassing_is_chain_of_subclassings_with_field_subclassing_objects():
+    class Statement(Document):
+        person: Person
+
+    class Action(Statement):
+        person_performing_action: Annotated[
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing(field_on_model=Statement, field_name="person")
+                ]
+            ),
+        ]
+
+    class MusicalPerformance(Action):
+        person_performing_music: Annotated[
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing(
+                        field_on_model=Action, field_name="person_performing_action"
+                    )
+                ]
+            ),
+        ]
+
+    class Person(Entity):
+        pass
+
+    action_person_performing_action_field = Action._meta.fields[
+        "person_performing_action"
+    ]
+    assert isinstance(action_person_performing_action_field, RelationFieldDefinition)
+    assert action_person_performing_action_field.subclasses_parent_fields == set(
+        [
+            FieldSubclassing(
+                field_name="person",
+                field_on_model=Statement,
+                disambiguator=None,
+            )
+        ]
+    )
+
+    musical_performance_person_performing_music_field = MusicalPerformance._meta.fields[
+        "person_performing_music"
+    ]
+    assert isinstance(
+        musical_performance_person_performing_music_field, RelationFieldDefinition
+    )
+
+    assert (
+        len(musical_performance_person_performing_music_field.subclasses_parent_fields)
+        == 2
+    )
+    assert (
+        musical_performance_person_performing_music_field.subclasses_parent_fields
+        == set(
+            [
+                FieldSubclassing(
+                    field_name="person",
+                    field_on_model=Statement,
+                ),
+                FieldSubclassing(
+                    field_name="person_performing_action",
+                    field_on_model=Action,
+                ),
+            ]
+        )
+    )
 
 
 def test_field_required_to_fulfil_subclassed_field():
@@ -1579,26 +1714,29 @@ def test_field_required_to_fulfil_subclassed_field():
     class Place(Entity):
         pass
 
-    class PersonInLocation(Document):
-        person: Person
-        place: Place
+    class OtherThing(Document):
+        pass
 
     class WithPrimaryPerson(Document):
-        person: Person
+        wpp_person: Person
+
+    class PersonInLocation(Document, Fulfils[WithPrimaryPerson]):
+        pil_person: Person
+        place: Place
 
     class Statement(Document):
         pass
 
-    class Action(Document, Fulfils[PersonInLocation]):
+    class Action(Statement, OtherThing, Fulfils[PersonInLocation, WithPrimaryPerson]):
         person_carrying_out_action: Annotated[
             Person,
             RelationConfig(
                 subclasses_parent_fields=[
                     FieldSubclassing(
-                        field_name="person", field_on_model=PersonInLocation
+                        field_name="pil_person", field_on_model=PersonInLocation
                     ),
                     FieldSubclassing(
-                        field_name="person", field_on_model=WithPrimaryPerson
+                        field_name="wpp_person", field_on_model=WithPrimaryPerson
                     ),
                 ]
             ),
@@ -1606,3 +1744,74 @@ def test_field_required_to_fulfil_subclassed_field():
 
     assert "person" not in Action._meta.fields
     assert Action._meta.fields["person_carrying_out_action"].field_required_to_fulfil
+
+    action_person_carrying_out_action_fields_required_to_fulfil = Action._meta.fields[
+        "person_carrying_out_action"
+    ].field_required_to_fulfil
+
+    assert action_person_carrying_out_action_fields_required_to_fulfil == {
+        FieldFulfilment(field_name="pil_person", fulfils_class=PersonInLocation),
+        FieldFulfilment(field_name="wpp_person", fulfils_class=WithPrimaryPerson),
+    }
+
+    assert "wpp_person" not in Action._meta.fields
+    assert "type" not in Action._meta.fields
+    assert "_fulfiling_types" not in Action._meta.fields
+
+
+def test_field_required_to_fulfil_subclassed_field_through_parent_fulfilment():
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    class OtherThing(Document):
+        pass
+
+    class WithPrimaryPerson(Document):
+        wpp_person: Person
+
+    class PersonInLocation(Document, Fulfils[WithPrimaryPerson]):
+        pil_person: Annotated[
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing(
+                        field_name="wpp_person", field_on_model=WithPrimaryPerson
+                    )
+                ]
+            ),
+        ]
+        place: Place
+
+    class Statement(Document):
+        pass
+
+    class Action(Statement, OtherThing, Fulfils[PersonInLocation, WithPrimaryPerson]):
+        person_carrying_out_action: Annotated[
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing(
+                        field_name="pil_person", field_on_model=PersonInLocation
+                    ),
+                ]
+            ),
+        ]
+
+    assert "person" not in Action._meta.fields
+    assert Action._meta.fields["person_carrying_out_action"].field_required_to_fulfil
+
+    action_person_carrying_out_action_fields_required_to_fulfil = Action._meta.fields[
+        "person_carrying_out_action"
+    ].field_required_to_fulfil
+
+    assert action_person_carrying_out_action_fields_required_to_fulfil == {
+        FieldFulfilment(field_name="pil_person", fulfils_class=PersonInLocation),
+        FieldFulfilment(field_name="wpp_person", fulfils_class=WithPrimaryPerson),
+    }
+
+    assert "wpp_person" not in Action._meta.fields
+    assert "type" not in Action._meta.fields
+    assert "_fulfiling_types" not in Action._meta.fields

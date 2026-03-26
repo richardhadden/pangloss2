@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVarTuple
 
 from pydantic import BaseModel
 
@@ -6,8 +6,18 @@ if TYPE_CHECKING:
     from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
 
-class Fulfils[T](BaseModel):
-    pass
+Ts = TypeVarTuple("Ts")
+
+
+class Fulfils(Generic[*Ts]):
+    _fulfiling_types: tuple
+
+    @classmethod
+    def __class_getitem__(cls, typs):
+        if not isinstance(typs, tuple):
+            typs = (typs,)
+        cls._fulfiling_types = typs
+        return cls
 
 
 class ViaEdge[Target, Model: EdgeModel](BaseModel):

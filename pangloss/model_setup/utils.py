@@ -380,6 +380,7 @@ def get_all_parent_classes(model):
     for pc in parent_classes:
         if pc in get_top_level_classes():
             continue
+
         if is_subclass_of_with_meta(pc):
             continue
 
