@@ -627,11 +627,6 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 )
 
     for field_name, field_info, field_fulfilment in get_fields_on_model(model):
-        if field_name == "type":
-            continue
-
-        print(field_name)
-
         if (
             issubclass(model, SemanticSpace)
             and model is not SemanticSpace
