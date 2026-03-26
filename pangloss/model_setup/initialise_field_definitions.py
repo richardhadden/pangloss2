@@ -1,15 +1,10 @@
-from datetime import date, datetime
-from functools import cache
 from inspect import isclass
 from types import UnionType
 from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
-    Iterable,
-    TypeIs,
     TypeVar,
-    Union,
     cast,
     get_args,
     get_origin,
@@ -17,7 +12,6 @@ from typing import (
 
 from annotated_types import BaseMetadata
 from frozendict import frozendict
-from pydantic._internal._generics import PydanticGenericMetadata
 from pydantic.fields import FieldInfo
 
 from pangloss.exceptions import PanglossModelError
@@ -41,159 +35,34 @@ from pangloss.model_setup.field_definitions import (
     TRelationFieldDefinitionAnnotation,
 )
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
-from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
-from pangloss.model_setup.model_bases.helpers import Fulfils, ViaEdge
+from pangloss.model_setup.model_bases.helpers import Fulfils
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait
 from pangloss.model_setup.utils import (
+    extract_relation_config,
+    flatten,
     get_all_parent_classes,
     get_concrete_types,
     get_direct_instantiations_of_trait,
+    get_model_and_edge_type,
+    get_relation_config,
+    is_embedded,
+    is_list_of_literal,
+    is_list_relatable,
+    is_literal,
+    is_parameterized_generic,
+    is_relatable,
+    is_single_relatable,
+    is_union_of_embedded,
+    is_via_edge,
     model_is_trait,
 )
-
-LITERAL_TYPES = {str, int, float, date, datetime}
-
-type LiteralTypes = str | int | float | date | datetime
-
-
-def is_literal(
-    annotation: type[Any] | None,
-) -> TypeIs[type[str | int | float | date | datetime]]:
-    """Checks whether an annotation is of a literal type"""
-    return annotation in LITERAL_TYPES
-
-
-def is_list_of_literal(
-    annotation: type[Any] | None,
-) -> TypeIs[type[list[str | int | float | date | datetime]]]:
-
-    # list[X]
-    if get_origin(annotation) is not list:
-        return False
-    # (X,)
-    args = get_args(annotation)
-    if not args:
-        return False
-
-    inner_type = args[0]
-
-    if is_literal(inner_type):
-        return True
-
-    if get_origin(inner_type) is Annotated:
-        inner_type_args = get_args(inner_type)
-        if not inner_type_args:
-            return False
-        if is_literal(inner_type_args[0]):
-            return True
-    return False
-
-
-def is_embedded(annotation: type[Any] | UnionType | None) -> TypeIs[type[Embedded]]:
-    if isclass(annotation) and issubclass(annotation, Embedded):
-        return True
-    return False
-
-
-def is_union_of_embedded(
-    annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[Embedded | Embedded]]:
-    if isinstance(annotation, UnionType):
-        if all(is_embedded(arg) for arg in get_args(annotation)):
-            return True
-    return False
-
-
-def is_union_of_relatable(
-    annotation: type[Any] | None | UnionType,
-) -> TypeIs[UnionType]:
-    if isinstance(annotation, UnionType):
-        return all(is_relatable(arg) for arg in get_args(annotation))
-    return False
-
-
-def is_via_edge(
-    annotation: type[Any] | None | UnionType,
-) -> TypeIs[type[ViaEdge[Document | Entity, EdgeModel]]]:
-    generic_metadata: PydanticGenericMetadata | None = getattr(
-        annotation, "__pydantic_generic_metadata__", None
-    )
-    if generic_metadata and generic_metadata["origin"] is ViaEdge:
-        if is_relatable(generic_metadata["args"][0]):
-            return True
-    return False
-
-
-def get_model_and_edge_type(
-    annotation: type[ViaEdge[type[Document | Entity], EdgeModel]],
-) -> tuple[type[Document | Entity], type[EdgeModel]]:
-    generic_metadata: PydanticGenericMetadata | None = getattr(
-        annotation, "__pydantic_generic_metadata__", None
-    )
-    if generic_metadata and generic_metadata["origin"] is ViaEdge:
-        if is_relatable(generic_metadata["args"][0]) and issubclass(
-            generic_metadata["args"][1], EdgeModel
-        ):
-            return cast(
-                tuple[type[Document | Entity], type[EdgeModel]],
-                generic_metadata["args"],
-            )
-
-    raise PanglossModelError("ViaEdge model incorrectly used")
-
-
-def is_relatable(
-    annotation: type[Any] | None | type[Any | Any] | UnionType,
-) -> TypeIs[type[_DeclaredClass] | type[Union[_DeclaredClass, _DeclaredClass]]]:
-    # from pangloss.model_setup.model_bases.document import Document
-    # from pangloss.model_setup.model_bases.entity import Entity
-
-    if is_union_of_relatable(annotation):
-        return True
-
-    if is_via_edge(annotation):
-        return True
-
-    if isclass(annotation) and issubclass(annotation, (_DeclaredClass)):
-        return True
-    return False
-
-
-def is_single_relatable(annotation: type[Any]) -> TypeIs[type[_DeclaredClass]]:
-    if isclass(annotation) and issubclass(annotation, _DeclaredClass):
-        return True
-    return False
-
-
-def is_list_relatable(annotation: type[Any] | None) -> bool:
-
-    # list[X]
-    if get_origin(annotation) is not list:
-        return False
-    # (X,)
-    args = get_args(annotation)
-    if not args:
-        return False
-
-    inner_type = args[0]
-
-    if is_relatable(inner_type):
-        return True
-
-    if get_origin(inner_type) is Annotated:
-        inner_type_args = get_args(inner_type)
-        if not inner_type_args:
-            return False
-        if is_relatable(inner_type_args[0]):
-            return True
-    return False
 
 
 def build_list_field_definition(
@@ -228,10 +97,6 @@ def build_list_field_definition(
         raise PanglossModelError(
             f"{model.__name__}.{field_name} has an invalid list field definition"
         )
-
-
-def flatten[T](xss: Iterable[Iterable[T]]) -> list[T]:
-    return [x for xs in xss for x in xs]
 
 
 def build_relation_options(
@@ -337,18 +202,6 @@ def build_relation_options(
             )
 
     return set(relation_options)
-
-
-def extract_relation_config(field_info: FieldInfo) -> RelationConfig | None:
-    if not field_info.metadata:
-        return None
-    for metadata_object in field_info.metadata:
-        if isinstance(metadata_object, RelationConfig):
-            return metadata_object
-
-
-def is_parameterized_generic(tp):
-    return get_origin(tp) is not None and len(get_args(tp)) > 0
 
 
 def build_relatable_field_definition(
@@ -473,16 +326,6 @@ def build_embedded_field_definition(
             EmbeddedOption(annotated_type=option) for option in field_options
         ),
     )
-
-
-@cache
-def get_relation_config(field_info: FieldInfo) -> RelationConfig | None:
-    if field_info.metadata and (
-        rcs := [md for md in field_info.metadata if isinstance(md, RelationConfig)]
-    ):
-        relation_config = cast(RelationConfig, rcs[0])
-        return relation_config
-    return None
 
 
 def get_field_origin_model_and_definition(

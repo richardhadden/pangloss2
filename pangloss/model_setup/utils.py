@@ -1,16 +1,34 @@
+from datetime import date, datetime
 from functools import cache
 from inspect import isclass
 from types import UnionType
-from typing import Any, Generic, get_args, overload
+from typing import (
+    Annotated,
+    Any,
+    Generic,
+    Iterable,
+    TypeIs,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    overload,
+)
 
 from pydantic import BaseModel
+from pydantic._internal._generics import PydanticGenericMetadata
+from pydantic.fields import FieldInfo
 from pydantic_meta_kit import WithMeta
 
+from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.model_bases.base_object import _BaseObject, _DeclaredClass
+from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
+from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     ReifiedRelationDocument,
@@ -208,6 +226,163 @@ def get_direct_instantiations_of_trait(
             if issubclass(subclass, (Document, Entity))
         ]
     )
+
+
+def is_literal(
+    annotation: type[Any] | None,
+) -> TypeIs[type[str | int | float | date | datetime]]:
+    """Checks whether an annotation is of a literal type"""
+    LITERAL_TYPES = {str, int, float, date, datetime}
+    return annotation in LITERAL_TYPES
+
+
+def is_list_of_literal(
+    annotation: type[Any] | None,
+) -> TypeIs[type[list[str | int | float | date | datetime]]]:
+
+    # list[X]
+    if get_origin(annotation) is not list:
+        return False
+    # (X,)
+    args = get_args(annotation)
+    if not args:
+        return False
+
+    inner_type = args[0]
+
+    if is_literal(inner_type):
+        return True
+
+    if get_origin(inner_type) is Annotated:
+        inner_type_args = get_args(inner_type)
+        if not inner_type_args:
+            return False
+        if is_literal(inner_type_args[0]):
+            return True
+    return False
+
+
+def is_embedded(annotation: type[Any] | UnionType | None) -> TypeIs[type[Embedded]]:
+    if isclass(annotation) and issubclass(annotation, Embedded):
+        return True
+    return False
+
+
+def is_union_of_embedded(
+    annotation: type[Any] | None | UnionType,
+) -> TypeIs[type[Embedded | Embedded]]:
+    if isinstance(annotation, UnionType):
+        if all(is_embedded(arg) for arg in get_args(annotation)):
+            return True
+    return False
+
+
+def is_union_of_relatable(
+    annotation: type[Any] | None | UnionType,
+) -> TypeIs[UnionType]:
+    if isinstance(annotation, UnionType):
+        return all(is_relatable(arg) for arg in get_args(annotation))
+    return False
+
+
+def is_via_edge(
+    annotation: type[Any] | None | UnionType,
+) -> TypeIs[type[ViaEdge[Document | Entity, EdgeModel]]]:
+    generic_metadata: PydanticGenericMetadata | None = getattr(
+        annotation, "__pydantic_generic_metadata__", None
+    )
+    if generic_metadata and generic_metadata["origin"] is ViaEdge:
+        if is_relatable(generic_metadata["args"][0]):
+            return True
+    return False
+
+
+def get_model_and_edge_type(
+    annotation: type[ViaEdge[type[Document | Entity], EdgeModel]],
+) -> tuple[type[Document | Entity], type[EdgeModel]]:
+    generic_metadata: PydanticGenericMetadata | None = getattr(
+        annotation, "__pydantic_generic_metadata__", None
+    )
+    if generic_metadata and generic_metadata["origin"] is ViaEdge:
+        if is_relatable(generic_metadata["args"][0]) and issubclass(
+            generic_metadata["args"][1], EdgeModel
+        ):
+            return cast(
+                tuple[type[Document | Entity], type[EdgeModel]],
+                generic_metadata["args"],
+            )
+
+    raise PanglossModelError("ViaEdge model incorrectly used")
+
+
+def is_relatable(
+    annotation: type[Any] | None | type[Any | Any] | UnionType,
+) -> TypeIs[type[_DeclaredClass] | type[Union[_DeclaredClass, _DeclaredClass]]]:
+    if is_union_of_relatable(annotation):
+        return True
+
+    if is_via_edge(annotation):
+        return True
+
+    if isclass(annotation) and issubclass(annotation, (_DeclaredClass)):
+        return True
+    return False
+
+
+def is_single_relatable(annotation: type[Any]) -> TypeIs[type[_DeclaredClass]]:
+    if isclass(annotation) and issubclass(annotation, _DeclaredClass):
+        return True
+    return False
+
+
+def is_list_relatable(annotation: type[Any] | None) -> bool:
+
+    # list[X]
+    if get_origin(annotation) is not list:
+        return False
+    # (X,)
+    args = get_args(annotation)
+    if not args:
+        return False
+
+    inner_type = args[0]
+
+    if is_relatable(inner_type):
+        return True
+
+    if get_origin(inner_type) is Annotated:
+        inner_type_args = get_args(inner_type)
+        if not inner_type_args:
+            return False
+        if is_relatable(inner_type_args[0]):
+            return True
+    return False
+
+
+def is_parameterized_generic(tp):
+    return get_origin(tp) is not None and len(get_args(tp)) > 0
+
+
+def flatten[T](xss: Iterable[Iterable[T]]) -> list[T]:
+    return [x for xs in xss for x in xs]
+
+
+def extract_relation_config(field_info: FieldInfo) -> RelationConfig | None:
+    if not field_info.metadata:
+        return None
+    for metadata_object in field_info.metadata:
+        if isinstance(metadata_object, RelationConfig):
+            return metadata_object
+
+
+@cache
+def get_relation_config(field_info: FieldInfo) -> RelationConfig | None:
+    if field_info.metadata and (
+        rcs := [md for md in field_info.metadata if isinstance(md, RelationConfig)]
+    ):
+        relation_config = cast(RelationConfig, rcs[0])
+        return relation_config
+    return None
 
 
 @cache
