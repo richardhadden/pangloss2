@@ -24,5 +24,5 @@ def test_initialisation_completes_eventually():
 
     assert Dog._meta._owner_class is Dog
 
-    # assert Factoid.model_fields["statements"].annotation is Statement
-    # assert Statement.model_fields["concerns_dog"].annotation is Dog
+    assert Factoid.model_fields["statements"].annotation is Statement
+    assert Statement.model_fields["concerns_dog"].annotation is Dog
