@@ -615,13 +615,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
     Iterates through all fields (including inherited fulfilments) and creates the
     appropriate field definitions, including literal/list/embedded/relation
     field types, while applying subclassing rules and relation config.
-
-    The function is safe to call on a class without `_meta` and will no-op.
     """
-    print("========= Initialising", model.__name__, " =========")
-    # TODO: REMOVE THIS HOOK WHEN ALL MODELS HAVE A META CLASS!!
-    if not hasattr(model, "_meta"):
-        return
 
     if issubclass(model, EdgeModel):
         for field_name, field_info in model.model_fields.items():
