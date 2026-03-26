@@ -24,13 +24,7 @@ from pangloss.model_setup.field_definitions import (
 )
 from pangloss.model_setup.initialise_field_definitions import (
     get_fields_on_model,
-    is_embedded,
-    is_list_of_literal,
-    is_list_relatable,
-    is_literal,
-    is_relatable,
     is_single_relatable,
-    is_union_of_embedded,
 )
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
@@ -96,39 +90,6 @@ def test_meta_fields():
 
     assert Statement._meta.fields["label"].field_on_model is Statement
     assert Action._meta.fields["label"].field_on_model is Action
-
-
-def test_is_literal():
-    """Verify that primitives and builtin types are treated as literals."""
-
-    class Statement(Document):
-        pass
-
-    assert is_literal(str)
-    assert is_literal(int)
-    assert is_literal(float)
-    assert is_literal(date)
-    assert is_literal(datetime)
-
-    assert not is_literal(Statement)
-    assert not is_literal(None)
-
-
-def test_is_list_of_literal():
-    """Verify that only list[...] of literals are treated as literal lists."""
-
-    class Statement(Document):
-        pass
-
-    assert not is_list_of_literal(str)
-
-    assert is_list_of_literal(list[str])
-
-    assert not is_list_of_literal(list[Statement])
-
-    assert is_list_of_literal(list[Annotated[str, MaxLen(1)]])
-
-    assert not is_list_of_literal(list[str | int])
 
 
 def test_field_definition_for_literal_field():
@@ -197,82 +158,6 @@ def test_field_definition_for_list_field():
     assert item_container_and_inner_validators_def.validators == [MaxLen(2)]
     assert item_container_and_inner_validators_def.inner_type is str
     assert item_container_and_inner_validators_def.inner_type_validators == [MaxLen(10)]
-
-
-def test_is_relatable():
-    """Validate that various types are recognized as relatables for relation fields."""
-
-    class ToDogEdge(EdgeModel):
-        when: date
-
-    class Factoid(Document):
-        pass
-
-    class Statement(Document):
-        concerns_dog: Dog
-        concerns_dog_list: list[Dog]
-        concerns_dog_annotated: Annotated[
-            list[ViaEdge[Dog, ToDogEdge]],
-            RelationConfig(reverse_name="is_concerned_in"),
-        ]
-        concerns_animal_multiple: Annotated[
-            list[ViaEdge[Dog, ToDogEdge]] | Cat,
-            RelationConfig(reverse_name="is_animal_in"),
-        ]
-
-    class Dog(Entity):
-        name: str
-
-    class Cat(Entity):
-        name: str
-
-    assert is_relatable(Statement)
-    assert is_relatable(Dog)
-    assert is_relatable(Factoid)
-    assert is_relatable(ViaEdge[Dog, ToDogEdge])
-    assert is_relatable(Dog | Cat)
-    assert is_list_relatable(list[ViaEdge[Dog, ToDogEdge]])
-    assert is_list_relatable(list[Dog])
-    assert is_list_relatable(list[Statement])
-    assert is_list_relatable(list[Factoid])
-
-
-def test_is_relatable_on_semantic_space():
-    class Negative[Content](SemanticSpace[Content]):
-        pass
-
-    class Statement(Document):
-        pass
-
-    assert is_relatable(Negative[Statement])
-
-
-def test_is_relatable_on_conjunction():
-    class Action(Document):
-        pass
-
-    class Alternative[T](Conjunction):
-        alternatives: T
-
-    assert is_relatable(Alternative)
-    assert is_relatable(Alternative[Action])
-
-
-def test_is_embedded():
-    class Thing(Embedded):
-        pass
-
-    assert is_embedded(Thing)
-
-
-def test_is_union_embedded():
-    class Thing(Embedded):
-        pass
-
-    class Thong(Embedded):
-        pass
-
-    assert is_union_of_embedded(Thing | Thong)
 
 
 def test_build_relation_field_definition_with_simple():
