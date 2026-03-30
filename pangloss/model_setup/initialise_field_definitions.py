@@ -556,7 +556,6 @@ def get_fields_on_model(model: type[_DeclaredClass]):
             field_name in subclassed_fields
             or field_is_from_indirect_non_heritable_model(model, field_name)
         ):
-            print("??fn", field_name)
             continue
 
         config = get_relation_config(field_info)
