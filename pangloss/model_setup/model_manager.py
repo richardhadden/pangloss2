@@ -14,6 +14,9 @@ from pydantic import PydanticUndefinedAnnotation
 from pangloss.exceptions import (
     PanglossInitialisationError,
 )
+from pangloss.model_setup.initialise_action_classes.initialise_create_model import (
+    initialise_create_model,
+)
 from pangloss.model_setup.initialise_field_definitions import (
     initialise_field_definitions,
 )
@@ -304,7 +307,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         ]
 
         for model in uninitialised_models:
-            initialise_field_definitions(model)
+            ModelManager.initialise_model(model)
             model._initialised = True
 
         # If the current declared_class is a subclass of something else
@@ -313,5 +316,10 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         for model in cls.all_models().values():
             for kls in model.depends_on_classes:
                 if isclass(kls) and issubclass(declared_class, kls):
-                    initialise_field_definitions(model)
+                    ModelManager.initialise_model(model)
                     break
+
+    @staticmethod
+    def initialise_model(model):
+        initialise_field_definitions(model)
+        initialise_create_model(model)

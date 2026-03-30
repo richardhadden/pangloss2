@@ -31,26 +31,26 @@ class _DeclaredClass(_BaseObject):
         cls.depends_on_classes = set()
 
 
-class _ActionClass[T](_BaseObject):
+class _ActionClass(_BaseObject):
     _owner: ClassVar[type[_DeclaredClass]]
 
 
-class _ReferenceViewBase[T](_ActionClass[T]):
+class _ReferenceViewBase(_ActionClass):
     id: UUID
     label: str
 
 
-class _ReferenceSetBase[T](_ActionClass[T]):
+class _ReferenceSetBase(_ActionClass):
     id: UUID
 
 
-class _CreateBase[T](_ActionClass[T]):
+class _CreateBase(_ActionClass):
     pass
 
 
-class _ViewBase[T](_ActionClass[T]):
+class _ViewBase(_ActionClass):
     id: UUID
 
 
-class _UpdateBase[T](_ActionClass[T]):
+class _UpdateBase(_ActionClass):
     id: UUID

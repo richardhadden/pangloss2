@@ -12,3 +12,7 @@ class PanglossAwaitingInitialisation(Exception):
 
 class PanglossModelError(Exception):
     pass
+
+
+class PanglossInternalError(Exception):
+    pass

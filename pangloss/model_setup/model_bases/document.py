@@ -17,7 +17,9 @@ from pangloss.model_setup.model_bases.base_object import (
 
 class DocumentMeta(BaseMeta, DeclaredClassMeta):
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
-    create_with_id: bool | InheritValue = InheritValue.AS_DEFAULT
+    create_with_id: bool | InheritValue = False
+    accept_url_as_id: bool | InheritValue = False
+    require_label: bool | InheritValue = True
     view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
         default_factory=list
     )
@@ -32,23 +34,23 @@ class DocumentMeta(BaseMeta, DeclaredClassMeta):
         return self.field_definitions.fields
 
 
-class DocumentCreateBase[T](_CreateBase[T]):
-    label: str
+class DocumentCreateBase(_CreateBase):
+    pass
 
 
-class DocumentViewBase[T](_ViewBase[T]):
+class DocumentViewBase(_ViewBase):
     pass  # in_semantic_space: list[str] = Field(default_factory=list)
 
 
-class DocumentUpdateBase[T: Document](_UpdateBase[T]):
+class DocumentUpdateBase(_UpdateBase):
     pass
 
 
-class DocumentReferenceViewBase[T](_ReferenceViewBase[T]):
+class DocumentReferenceViewBase(_ReferenceViewBase):
     pass
 
 
-class DocumentReferenceSetBase[T](_ReferenceSetBase[T]):
+class DocumentReferenceSetBase(_ReferenceSetBase):
     pass
 
 
@@ -59,13 +61,6 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
     model_config = ConfigDict(validate_assignment=True)
 
     _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
-    _action_classes: ClassVar[list[str]] = [
-        "Create",
-        "View",
-        "Update",
-        "ReferenceView",
-        "ReferenceSetBase",
-    ]
 
     Create: ClassVar[type[DocumentCreateBase]]
     View: ClassVar[type[DocumentViewBase]]
