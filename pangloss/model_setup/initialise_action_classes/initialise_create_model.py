@@ -1,5 +1,5 @@
 import warnings
-from typing import Literal, cast, get_args, get_type_hints
+from typing import Literal, get_args, get_type_hints
 from uuid import UUID
 
 from pydantic import AnyHttpUrl
@@ -7,10 +7,9 @@ from pydantic import create_model as pydantic_create_model
 from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
-from pangloss.model_setup.model_bases.document import Document, DocumentCreateBase
 
 
-def build_id_field_on_model(model) -> None:
+def build_id_field_on_create_model(model) -> None:
     assert model.Create
     if getattr(model._meta, "create_with_id", False):
         annotation = UUID | None
@@ -18,6 +17,13 @@ def build_id_field_on_model(model) -> None:
             annotation = UUID | AnyHttpUrl | None
         model.Create.model_fields["id"] = FieldInfo(annotation=annotation, default=None)
         model.Create.model_fields["create_new"] = FieldInfo(annotation=Literal[True])  # pyright: ignore[reportArgumentType]
+
+
+def build_label_field_on_create_model(model):
+    assert model.Create
+
+    if getattr(model._meta, "require_label", True):
+        model.Create.model_fields["label"] = FieldInfo(annotation=str)
 
 
 def initialise_create_model(model: type[_DeclaredClass]):
@@ -33,11 +39,11 @@ def initialise_create_model(model: type[_DeclaredClass]):
     # Extracts from the _DeclaredClass definition the annotation for .Create
     create_base_type = get_args(get_args(type_hints["Create"])[0])[0]
 
-    if issubclass(model, Document):
-        model.Create = cast(
-            type[DocumentCreateBase],
-            pydantic_create_model(f"{model.__name__}Create", __base__=create_base_type),
-        )
-        build_id_field_on_model(model)
+    model.Create = pydantic_create_model(
+        f"{model.__name__}Create", __base__=create_base_type
+    )  # pyright: ignore[reportAttributeAccessIssue]
 
-        model.Create.model_rebuild(force=True)
+    build_id_field_on_create_model(model)
+    build_label_field_on_create_model(model)
+
+    model.Create.model_rebuild(force=True)

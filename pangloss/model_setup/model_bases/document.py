@@ -34,7 +34,7 @@ class DocumentMeta(BaseMeta, DeclaredClassMeta):
         return self.field_definitions.fields
 
 
-class DocumentCreateBase(_CreateBase):
+class _DocumentCreateBase(_CreateBase):
     pass
 
 
@@ -62,7 +62,7 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
 
     _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    Create: ClassVar[type[DocumentCreateBase]]
+    Create: ClassVar[type[_DocumentCreateBase]]
     View: ClassVar[type[DocumentViewBase]]
     Update: ClassVar[type[DocumentUpdateBase]]
 

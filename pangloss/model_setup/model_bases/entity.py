@@ -4,13 +4,14 @@ from pydantic import BaseModel, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
 from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
-from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
 
 
 class EntityMeta(BaseMeta):
     _owner_class: type[Entity] | InheritValue = InheritValue.AS_DEFAULT
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
     create_with_id: bool | InheritValue = InheritValue.AS_DEFAULT
+    accept_url_as_id: bool | InheritValue = False
     view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
         default_factory=list
     )
@@ -26,6 +27,10 @@ class EntityMeta(BaseMeta):
         raise Exception(f"{self.__class__.__name__}.field_definition missing")
 
 
+class _EntityCreateBase(_CreateBase):
+    pass
+
+
 class EntityReferenceSet(BaseModel):
     pass
 
@@ -33,14 +38,8 @@ class EntityReferenceSet(BaseModel):
 class Entity(_DeclaredClass, WithMeta[EntityMeta]):
     Meta: ClassVar[type[EntityMeta]] = EntityMeta
     _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
-    _action_classes: ClassVar[list[str]] = [
-        "Create",
-        "View",
-        "Update",
-        "ReferenceView",
-        "ReferenceSet",
-        "ReferenceCreate",
-    ]
+
+    Create: ClassVar[type[_EntityCreateBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
