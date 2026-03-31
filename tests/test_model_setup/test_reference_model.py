@@ -1,5 +1,5 @@
-from typing import Literal
-from uuid import UUID
+from typing import Literal, no_type_check
+from uuid import UUID, uuid7
 
 from pydantic import AnyHttpUrl
 
@@ -16,6 +16,7 @@ def test_reference_set_on_entities():
     assert Person.ReferenceSet.model_fields["id"].annotation == UUID | AnyHttpUrl
 
 
+@no_type_check
 def test_reference_set_with_edge_property():
     class Person(Entity):
         pass
@@ -44,3 +45,9 @@ def test_reference_set_with_edge_property():
         Person.ReferenceSet._via.Certainty.model_fields["type"].annotation
         == Literal["Person"]
     )
+
+    _uuid = uuid7()
+
+    p = Person.ReferenceSet(id=_uuid, label="something")
+    assert p.id == _uuid
+    assert p.label is None

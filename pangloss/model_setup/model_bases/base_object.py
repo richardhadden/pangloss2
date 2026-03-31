@@ -3,7 +3,7 @@ from functools import cache
 from typing import TYPE_CHECKING, ClassVar, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr, create_model
+from pydantic import BaseModel, ConfigDict, PrivateAttr, create_model, model_validator
 from pydantic.alias_generators import to_camel
 
 if TYPE_CHECKING:
@@ -81,6 +81,14 @@ class _ReferenceViewBase(_ActionClass):
 
 class _ReferenceSetBase(_ActionClass):
     id: UUID
+
+    @model_validator(mode="after")
+    def remove_label(self):
+        """Should not start setting the label of a ReferenceSet,
+        but it's allowed as a field as it might be nice sometimes
+        to write it in code for clarity"""
+        self.label = None
+        return self
 
 
 class _CreateBase(_ActionClass):

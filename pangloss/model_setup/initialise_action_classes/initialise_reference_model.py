@@ -43,6 +43,7 @@ def initialise_reference_model(model: type[_DeclaredClass]):
         __config__=ConfigDict(alias_generator=to_camel),
         type=(Literal[model.__name__], model.__name__),  # type: ignore
         id=id_type,
+        label=(str | None, None),
     )  # pyright: ignore[reportAttributeAccessIssue]
 
     model.ReferenceSet.model_rebuild(force=True)
