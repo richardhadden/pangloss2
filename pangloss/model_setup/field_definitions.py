@@ -211,6 +211,16 @@ class ModelFieldDict[K, V](dict[K, V]):
             typevar_fields[field_name] = field
         return typevar_fields
 
+    @property
+    def literal_fields(self) -> dict[K, LiteralFieldDefinition | ListFieldDefinition]:
+        return {
+            field_name: field_definition
+            for field_name, field_definition in self.items()
+            if isinstance(
+                field_definition, (LiteralFieldDefinition, ListFieldDefinition)
+            )
+        }
+
 
 @dataclass
 class ModelFields:

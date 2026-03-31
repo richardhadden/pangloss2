@@ -1,14 +1,16 @@
 import warnings
-from typing import Literal, TypeVar, get_args, get_type_hints
+from typing import ClassVar, Literal, TypeVar, get_args, get_type_hints
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, model_validator
+from pydantic import AnyHttpUrl, ConfigDict, model_validator
 from pydantic import create_model as pydantic_create_model
+from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
+from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
@@ -58,6 +60,7 @@ def build_id_field_on_create_model(model) -> None:
 def build_label_field_on_create_model(
     model: type[
         Document
+        | Embedded
         | Entity
         | ReifiedRelation
         | ReifiedRelationDocument
@@ -99,14 +102,21 @@ def can_have_create_model(model: type[_DeclaredClass]) -> bool:
 def initialise_create_model(
     model: type[
         Document
+        | Embedded
         | Entity
         | ReifiedRelation
         | ReifiedRelationDocument
         | Conjunction
         | SemanticSpace
     ],
-):
+) -> None:
+
     if not can_have_create_model(model):
+        return
+
+    # Checks if Create model has already been created; do not duplicate as we depend
+    # on model reference!
+    if "Create" in model.__dict__:
         return
 
     try:  # TODO! Remove this guard once all tests passing
@@ -125,9 +135,33 @@ def initialise_create_model(
         f"{model.__name__}Create",
         __base__=create_base_type,
         __validators__=get_model_validators(model),
+        _owner=(ClassVar[model], model),
+        __config__=ConfigDict(alias_generator=to_camel),
     )  # pyright: ignore[reportAttributeAccessIssue]
 
     build_id_field_on_create_model(model)
     build_label_field_on_create_model(model)
+
+    model.Create.model_rebuild(force=True)
+
+
+def add_fields_to_create_model(
+    model: type[
+        Document
+        | Embedded
+        | Entity
+        | ReifiedRelation
+        | ReifiedRelationDocument
+        | Conjunction
+        | SemanticSpace
+    ],
+) -> None:
+
+    for field_name, field_definition in model._meta.fields.literal_fields.items():
+        model.Create.model_fields[field_name] = FieldInfo(
+            annotation=field_definition.annotated_type,
+            validation_alias=to_camel(field_name),
+            metadata=field_definition.validators,  # type: ignore
+        )
 
     model.Create.model_rebuild(force=True)

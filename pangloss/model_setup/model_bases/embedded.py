@@ -10,6 +10,7 @@ from pangloss.model_setup.field_definitions import (
 )
 from pangloss.model_setup.model_bases.base_object import (
     DeclaredClassMeta,
+    _CreateBase,
     _DeclaredClass,
 )
 
@@ -25,8 +26,14 @@ class EmbeddedMeta(BaseMeta, DeclaredClassMeta):
         return self.field_definitions.fields
 
 
+class _EmbeddedCreateBase(_CreateBase):
+    pass
+
+
 class Embedded(_DeclaredClass, WithMeta[EmbeddedMeta]):
     _meta: ClassVar[EmbeddedMeta] = EmbeddedMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
+
+    Create: ClassVar[type[_EmbeddedCreateBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:

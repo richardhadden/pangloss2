@@ -15,6 +15,7 @@ from pangloss.exceptions import (
     PanglossInitialisationError,
 )
 from pangloss.model_setup.initialise_action_classes.initialise_create_model import (
+    add_fields_to_create_model,
     initialise_create_model,
 )
 from pangloss.model_setup.initialise_field_definitions import (
@@ -306,12 +307,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
             and not getattr(model, "_initialised", False)
         ]
 
-        for model in uninitialised_models:
-            try:
-                ModelManager.initialise_model(model)
-                model._initialised = True
-            except AttributeError:
-                pass
+        ModelManager.initialise_models(uninitialised_models)
 
         # If the current declared_class is a subclass of something else
         # that is a dependency of a class already declared, we need to rebuild
@@ -319,10 +315,26 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         for model in cls.all_models().values():
             for kls in model._depends_on_classes:
                 if isclass(kls) and issubclass(declared_class, kls):
-                    ModelManager.initialise_model(model)
+                    try:
+                        ModelManager.initialise_models([model])
+                        model._initialised = True
+                    except AttributeError:
+                        pass
                     break
 
     @staticmethod
-    def initialise_model(model):
-        initialise_field_definitions(model)
-        initialise_create_model(model)
+    def initialise_models(uninitialised_models):
+        for model in uninitialised_models:
+            try:
+                initialise_field_definitions(model)
+                initialise_create_model(model)
+            except AttributeError:
+                pass
+
+        for model in uninitialised_models:
+            try:
+                add_fields_to_create_model(model)
+                model._initialised = True
+                model.model_rebuild(force=True)
+            except AttributeError:
+                pass

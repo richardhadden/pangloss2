@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, ClassVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic.alias_generators import to_camel
 
 if TYPE_CHECKING:
     from pangloss.model_setup.field_definitions import (
@@ -13,7 +14,9 @@ if TYPE_CHECKING:
 
 
 class _BaseObject(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, alias_generator=to_camel, populate_by_name=True
+    )
 
     _initialised: ClassVar[bool] = False
 

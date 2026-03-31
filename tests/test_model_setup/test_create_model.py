@@ -11,11 +11,23 @@ from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 
 
 @no_type_check
+def test_camel_case():
+    class Statement(Document):
+        some_snake: str
+
+    st = Statement.Create(**dict(label="A statement", someSnake="hello"))
+    assert st.some_snake == "hello"
+
+
+@no_type_check
 def test_create_model_for_document_with_no_id():
     class Statement(Document):
-        name: str
+        pass
 
     assert Statement.Create
+
+    assert Statement.Create._owner is Statement
+
     assert "id" not in Statement.Create.model_fields
 
     st = Statement.Create(label="A Statement")
@@ -119,3 +131,32 @@ def test_build_base_create_model_for_reified_relation():
         pass
 
     assert "id" not in Identification.Create.model_fields
+
+
+@no_type_check
+def test_add_fields_to_document_create_model():
+    class Statement(Document):
+        name: str
+        age: int
+        numbers: list[int]
+
+    assert "name" in Statement.Create.model_fields
+    name_field = Statement.Create.model_fields["name"]
+    assert name_field.annotation is str
+
+    assert "age" in Statement.Create.model_fields
+    age_field = Statement.Create.model_fields["age"]
+    assert age_field.annotation is int
+
+    assert "numbers" in Statement.Create.model_fields
+    numbers_field = Statement.Create.model_fields["numbers"]
+    assert numbers_field.annotation == list[int]
+
+    st = Statement.Create(label="A Statement", name="John", age=12, numbers=[1, 2, 3])
+    assert st.label == "A Statement"
+    assert st.name == "John"
+    assert st.age == 12
+    assert st.numbers == [1, 2, 3]
+
+    with pytest.raises(ValidationError):
+        st = Statement.Create(label="A Statement", name="John", age=12, numbers="WRONG")
