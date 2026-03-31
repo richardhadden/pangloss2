@@ -1,9 +1,13 @@
 from typing import Any, ClassVar, Self
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue
 
-from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
+from pangloss.model_setup.field_definitions import (
+    FieldDefinition,
+    ModelFieldDict,
+    ModelFields,
+)
 from pangloss.model_setup.model_bases.base_object import (
     DeclaredClassMeta,
     _DeclaredClass,
@@ -13,11 +17,12 @@ from pangloss.model_setup.model_bases.entity import Entity
 
 
 class TraitMeta[T: Trait | NonHeritableTrait](BaseMeta, DeclaredClassMeta):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     field_definitions: ModelFields = Field(default_factory=ModelFields)
     _owner_class: type[T] | InheritValue = InheritValue.AS_DEFAULT
 
     @property
-    def fields(self) -> dict[str, FieldDefinition]:
+    def fields(self) -> ModelFieldDict[str, FieldDefinition]:
         return self.field_definitions.fields
 
 

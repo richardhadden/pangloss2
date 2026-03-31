@@ -1,17 +1,23 @@
 from typing import Annotated, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
-from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
+from pangloss.model_setup.field_definitions import (
+    FieldDefinition,
+    ModelFieldDict,
+    ModelFields,
+)
 from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
 
 
 class EntityMeta(BaseMeta):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     _owner_class: type[Entity] | InheritValue = InheritValue.AS_DEFAULT
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
-    create_with_id: bool | InheritValue = InheritValue.AS_DEFAULT
-    accept_url_as_id: bool | InheritValue = False
+    create_with_id: bool | InheritValue = False
+    create_inline: bool | InheritValue = False
+    accept_url_as_id: bool | InheritValue = True
     view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
         default_factory=list
     )
@@ -21,7 +27,7 @@ class EntityMeta(BaseMeta):
     field_definitions: ModelFields = Field(default_factory=ModelFields)
 
     @property
-    def fields(self) -> dict[str, FieldDefinition]:
+    def fields(self) -> ModelFieldDict[str, FieldDefinition]:
         if self.field_definitions:
             return self.field_definitions.fields
         raise Exception(f"{self.__class__.__name__}.field_definition missing")

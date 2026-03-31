@@ -1,10 +1,13 @@
 from typing import no_type_check
 from uuid import UUID, uuid7
 
-from pydantic import AnyHttpUrl
+import pytest
+from pydantic import AnyHttpUrl, ValidationError
 
+from pangloss.model_setup.field_definitions import RelationFieldDefinition
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 
 
 @no_type_check
@@ -65,3 +68,54 @@ def test_create_model_for_entity():
         pass
 
     assert Person.Create
+
+    assert "id" not in Person.Create.model_fields
+    assert "label" in Person.Create.model_fields
+
+
+@no_type_check
+def test_create_model_for_entity_with_id():
+    class Person(Entity):
+        _meta = Entity.Meta(create_with_id=True)
+
+    assert Person.Create
+
+    assert "id" in Person.Create.model_fields
+    assert Person.Create.model_fields["id"].annotation == UUID | AnyHttpUrl | None
+    assert "label" in Person.Create.model_fields
+
+    p = Person.Create(id=uuid7(), label="John Smith", create_new=True)
+    assert p.id
+
+    # With an ID provided, create_new=True must also be set
+    with pytest.raises(ValidationError):
+        Person.Create(id="http://mything.net/person", label="Toby Jones")
+
+    # With create_new=True set, an ID must also be provided
+    with pytest.raises(ValidationError):
+        Person.Create(label="Toby Jones", create_new=True)
+
+
+@no_type_check
+def test_typevar_fields():
+
+    class WithProxy[TTarget, TProxy](ReifiedRelation[TTarget]):
+        proxy: list[Identification[TProxy]]
+
+    class Identification[TTarget](ReifiedRelation[TTarget]):
+        pass
+
+    with_proxy_proxy_field_definition = WithProxy._meta.fields["proxy"]
+    assert isinstance(with_proxy_proxy_field_definition, RelationFieldDefinition)
+    assert with_proxy_proxy_field_definition.contains_typevar is True
+
+    assert list(WithProxy._meta.fields.typevar_fields.keys()) == ["target", "proxy"]
+
+
+@no_type_check
+def test_build_base_create_model_for_reified_relation():
+
+    class Identification[TTarget](ReifiedRelation[TTarget]):
+        pass
+
+    assert "id" not in Identification.Create.model_fields

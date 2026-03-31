@@ -3,7 +3,11 @@ from typing import Annotated, ClassVar
 from pydantic import ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
-from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
+from pangloss.model_setup.field_definitions import (
+    FieldDefinition,
+    ModelFieldDict,
+    ModelFields,
+)
 from pangloss.model_setup.model_bases.base_object import (
     DeclaredClassMeta,
     _CreateBase,
@@ -16,6 +20,7 @@ from pangloss.model_setup.model_bases.base_object import (
 
 
 class DocumentMeta(BaseMeta, DeclaredClassMeta):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
     create_with_id: bool | InheritValue = False
     accept_url_as_id: bool | InheritValue = False
@@ -30,7 +35,7 @@ class DocumentMeta(BaseMeta, DeclaredClassMeta):
     _owner_class: type[Document] | InheritValue = InheritValue.AS_DEFAULT
 
     @property
-    def fields(self) -> dict[str, FieldDefinition]:
+    def fields(self) -> ModelFieldDict[str, FieldDefinition]:
         return self.field_definitions.fields
 
 

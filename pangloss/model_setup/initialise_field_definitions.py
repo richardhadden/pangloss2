@@ -157,7 +157,7 @@ def build_relation_options(
                 and issubclass(t, (_DeclaredClass))
                 and not is_parameterized_generic(t)
             ):
-                model.depends_on_classes.add(t)
+                model._depends_on_classes.add(t)
 
         type_options = {
             type_var.__name__: ParameterTypeOptions[type[origin]](
@@ -172,7 +172,7 @@ def build_relation_options(
         }
 
         if issubclass(origin, ReifiedRelation):
-            model.depends_on_classes.add(origin)
+            model._depends_on_classes.add(origin)
             relation_options.append(
                 RelationToReifiedRelation(
                     annotated_type=annotation,
@@ -182,7 +182,7 @@ def build_relation_options(
                 )
             )
         if issubclass(origin, SemanticSpace):
-            model.depends_on_classes.add(origin)
+            model._depends_on_classes.add(origin)
             for concrete_semantic_space in get_concrete_types(origin):
                 relation_options.append(
                     RelationToSemanticSpace(
@@ -193,7 +193,7 @@ def build_relation_options(
                     )
                 )
         if issubclass(origin, Conjunction):
-            model.depends_on_classes.add(origin)
+            model._depends_on_classes.add(origin)
             for concrete_conjunction in get_concrete_types(origin):
                 relation_options.append(
                     RelationToConjunction(
@@ -296,9 +296,9 @@ def build_relatable_field_definition(
         if is_parameterized_generic(annotation) and isclass(
             (origin := get_origin(annotation))
         ):
-            model.depends_on_classes.add(origin)
+            model._depends_on_classes.add(origin)
         elif isclass(annotation):
-            model.depends_on_classes.add(annotation)
+            model._depends_on_classes.add(annotation)
 
         return RelationFieldDefinition(
             field_name=field_name,
@@ -318,10 +318,10 @@ def build_relatable_field_definition(
         if is_parameterized_generic(field_info.annotation) and isclass(
             (origin := get_origin(field_info.annotation))
         ):
-            model.depends_on_classes.add(origin)  # pyright: ignore[reportArgumentType]
-            model.depends_on_classes.update(get_args(field_info.annotation))
+            model._depends_on_classes.add(origin)  # pyright: ignore[reportArgumentType]
+            model._depends_on_classes.update(get_args(field_info.annotation))
         else:
-            model.depends_on_classes.add(field_info.annotation)
+            model._depends_on_classes.add(field_info.annotation)
 
         return RelationFieldDefinition(
             field_name=field_name,
@@ -350,7 +350,7 @@ def build_embedded_field_definition(
     field_options: set[type[Embedded]] = get_concrete_types(field_info.annotation)
 
     if isclass(field_info.annotation):
-        model.depends_on_classes.add(field_info.annotation)
+        model._depends_on_classes.add(field_info.annotation)
 
     return EmbeddedFieldDefinition(
         field_name=field_name,

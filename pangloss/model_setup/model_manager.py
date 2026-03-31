@@ -307,14 +307,17 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         ]
 
         for model in uninitialised_models:
-            ModelManager.initialise_model(model)
-            model._initialised = True
+            try:
+                ModelManager.initialise_model(model)
+                model._initialised = True
+            except AttributeError:
+                pass
 
         # If the current declared_class is a subclass of something else
         # that is a dependency of a class already declared, we need to rebuild
         # the model fields for that class so that the subclass is taken into account
         for model in cls.all_models().values():
-            for kls in model.depends_on_classes:
+            for kls in model._depends_on_classes:
                 if isclass(kls) and issubclass(declared_class, kls):
                     ModelManager.initialise_model(model)
                     break

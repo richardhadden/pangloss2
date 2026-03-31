@@ -2,10 +2,14 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 if TYPE_CHECKING:
-    from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
+    from pangloss.model_setup.field_definitions import (
+        FieldDefinition,
+        ModelFieldDict,
+        ModelFields,
+    )
 
 
 class _BaseObject(BaseModel):
@@ -17,18 +21,18 @@ class _BaseObject(BaseModel):
 class DeclaredClassMeta(ABC):
     @property
     @abstractmethod
-    def fields(self) -> dict[str, FieldDefinition]: ...
+    def fields(self) -> ModelFieldDict[str, FieldDefinition]: ...
 
     field_definitions: ModelFields
 
 
 class _DeclaredClass(_BaseObject):
     _meta: ClassVar[DeclaredClassMeta]
-    depends_on_classes: ClassVar[set[type[_DeclaredClass]]]
+    _depends_on_classes: ClassVar[set[type[_DeclaredClass]]] = PrivateAttr()
 
     @classmethod
     def __pydantic_init_subclass__(cls, **_):
-        cls.depends_on_classes = set()
+        cls._depends_on_classes = set()
 
 
 class _ActionClass(_BaseObject):

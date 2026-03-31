@@ -1,24 +1,35 @@
 from typing import Annotated, ClassVar
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
-from pangloss.model_setup.field_definitions import FieldDefinition, ModelFields
-from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pangloss.model_setup.field_definitions import (
+    FieldDefinition,
+    ModelFieldDict,
+    ModelFields,
+)
+from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
 
 
 class ConjunctionMeta(BaseMeta):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     _owner_class: type[Conjunction] | InheritValue = InheritValue.AS_DEFAULT
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
     field_definitions: ModelFields = Field(default_factory=ModelFields)
 
     @property
-    def fields(self) -> dict[str, FieldDefinition]:
+    def fields(self) -> ModelFieldDict[str, FieldDefinition]:
         return self.field_definitions.fields
+
+
+class _ConjunctionCreate(_CreateBase):
+    pass
 
 
 class Conjunction(_DeclaredClass, WithMeta[ConjunctionMeta]):
     _meta: ClassVar[ConjunctionMeta] = ConjunctionMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
+
+    Create: ClassVar[type[_ConjunctionCreate]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:

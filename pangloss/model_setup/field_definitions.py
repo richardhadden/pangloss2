@@ -127,6 +127,25 @@ class RelationFieldDefinition(FieldDefinition):
     subclasses_parent_fields: set[str | FieldSubclassing]
     wrapper: type[list | tuple] | None = None
 
+    @staticmethod
+    def type_option_contains_typevar(
+        type_options: set[RelationOption] | frozenset[RelationOption],
+    ) -> bool:
+        for type_option in type_options:
+            print(type_option)
+            if isinstance(type_option, RelationToTypeVar):
+                return True
+            if isinstance(type_option, RelationToReifiedRelation):
+                for param_type_option in type_option.parameter_type_options.values():
+                    if isinstance(param_type_option.type_var, TypeVar):
+                        return True
+
+        return False
+
+    @property
+    def contains_typevar(self) -> bool:
+        return self.type_option_contains_typevar(self.type_options)
+
 
 @dataclass(frozen=True, kw_only=True)
 class RelationOption:
@@ -184,9 +203,20 @@ class RelationToTypeVar(RelationOption):
     annotated_type: TypeVar  # pyright: ignore[reportIncompatibleVariableOverride]
 
 
+class ModelFieldDict[K, V](dict[K, V]):
+    @property
+    def typevar_fields(self) -> dict[K, RelationFieldDefinition]:
+        typevar_fields = {}
+        for field_name, field in self.items():
+            typevar_fields[field_name] = field
+        return typevar_fields
+
+
 @dataclass
 class ModelFields:
-    fields: dict[str, FieldDefinition] = dataclass_field(default_factory=dict)
+    fields: ModelFieldDict[str, FieldDefinition] = dataclass_field(
+        default_factory=ModelFieldDict
+    )
 
     def add_field(self, name: str, field_definition: FieldDefinition):
         self.fields[name] = field_definition
