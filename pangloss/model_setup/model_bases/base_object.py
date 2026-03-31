@@ -38,8 +38,17 @@ class _DeclaredClass(_BaseObject):
         cls._depends_on_classes = set()
 
 
+class MetaGetter:
+    """Descriptor class for getting the _meta class from
+    the _DeclaredClass of an _ActionClass"""
+
+    def __get__(self, instance, owner):
+        return owner._owner._meta
+
+
 class _ActionClass(_BaseObject):
     _owner: ClassVar[type[_DeclaredClass]]
+    _meta: ClassVar = MetaGetter()
 
 
 class _ReferenceViewBase(_ActionClass):

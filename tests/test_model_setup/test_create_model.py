@@ -1,4 +1,4 @@
-from typing import no_type_check
+from typing import Literal, no_type_check
 from uuid import UUID, uuid7
 
 import pytest
@@ -17,6 +17,22 @@ def test_camel_case():
 
     st = Statement.Create(**dict(label="A statement", someSnake="hello"))
     assert st.some_snake == "hello"
+
+
+@no_type_check
+def test_meta_accessible_through_create():
+    class Statement(Document):
+        some_snake: str
+
+    assert Statement.Create._meta is Statement._meta
+
+
+@no_type_check
+def test_type_field_is_correct():
+    class Statement(Document):
+        pass
+
+    assert Statement.Create.model_fields["type"].annotation == Literal["Statement"]
 
 
 @no_type_check
@@ -160,3 +176,12 @@ def test_add_fields_to_document_create_model():
 
     with pytest.raises(ValidationError):
         st = Statement.Create(label="A Statement", name="John", age=12, numbers="WRONG")
+
+
+@no_type_check
+def test_add_simple_relation_to_document():
+    class Statement(Document):
+        was_carried_out_by: Person
+
+    class Person(Entity):
+        pass

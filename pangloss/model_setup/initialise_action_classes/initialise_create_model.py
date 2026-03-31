@@ -137,6 +137,7 @@ def initialise_create_model(
         __validators__=get_model_validators(model),
         _owner=(ClassVar[model], model),
         __config__=ConfigDict(alias_generator=to_camel),
+        type=(Literal[model.__name__], model.__name__),  # type: ignore
     )  # pyright: ignore[reportAttributeAccessIssue]
 
     build_id_field_on_create_model(model)

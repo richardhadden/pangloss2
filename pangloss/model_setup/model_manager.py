@@ -18,6 +18,9 @@ from pangloss.model_setup.initialise_action_classes.initialise_create_model impo
     add_fields_to_create_model,
     initialise_create_model,
 )
+from pangloss.model_setup.initialise_action_classes.initialise_reference_model import (
+    initialise_reference_model,
+)
 from pangloss.model_setup.initialise_field_definitions import (
     initialise_field_definitions,
 )
@@ -328,6 +331,12 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
             try:
                 initialise_field_definitions(model)
                 initialise_create_model(model)
+            except AttributeError:
+                pass
+
+        for model in uninitialised_models:
+            try:
+                initialise_reference_model(model)
             except AttributeError:
                 pass
 

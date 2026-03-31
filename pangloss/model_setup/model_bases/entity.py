@@ -1,6 +1,6 @@
 from typing import Annotated, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
 from pangloss.model_setup.field_definitions import (
@@ -8,7 +8,11 @@ from pangloss.model_setup.field_definitions import (
     ModelFieldDict,
     ModelFields,
 )
-from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
+from pangloss.model_setup.model_bases.base_object import (
+    _CreateBase,
+    _DeclaredClass,
+    _ReferenceSetBase,
+)
 
 
 class EntityMeta(BaseMeta):
@@ -37,7 +41,7 @@ class _EntityCreateBase(_CreateBase):
     pass
 
 
-class EntityReferenceSet(BaseModel):
+class _EntityReferenceSet(_ReferenceSetBase):
     pass
 
 
@@ -46,6 +50,7 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
     _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_EntityCreateBase]]
+    ReferenceSet: ClassVar[type[_EntityReferenceSet]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
@@ -64,5 +69,3 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
     @classmethod
     def __pangloss_post_init__(cls):
         pass
-
-    ReferenceSet: ClassVar[EntityReferenceSet]
