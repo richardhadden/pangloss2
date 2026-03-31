@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, ClassVar
+from functools import cache
+from typing import TYPE_CHECKING, ClassVar, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import BaseModel, ConfigDict, PrivateAttr, create_model
 from pydantic.alias_generators import to_camel
 
 if TYPE_CHECKING:
@@ -11,6 +12,7 @@ if TYPE_CHECKING:
         ModelFieldDict,
         ModelFields,
     )
+    from pangloss.model_setup.model_bases.edge_model import EdgeModel
 
 
 class _BaseObject(BaseModel):
@@ -46,9 +48,30 @@ class MetaGetter:
         return owner._owner._meta
 
 
+class GetItemViaAttrDict[T](dict):
+    def __getattr__(self, name) -> type[T]:
+        if name in self:
+            return self[name]
+        return super().__getattribute__(name)
+
+
 class _ActionClass(_BaseObject):
     _owner: ClassVar[type[_DeclaredClass]]
     _meta: ClassVar = MetaGetter()
+    _via: ClassVar[GetItemViaAttrDict[Self]] = GetItemViaAttrDict()
+
+    @classmethod
+    @cache
+    def apply_edge_model(cls, edge_model: type[EdgeModel]):
+        """Creates a variant of the model with additional 'edge_property' field
+        of the type supplied"""
+        model = create_model(
+            f"{cls.__name__}Via{edge_model.__name__}",
+            __base__=cls,
+            edge_properties=edge_model,
+        )
+        cls._via[edge_model.__name__] = model
+        return model
 
 
 class _ReferenceViewBase(_ActionClass):
