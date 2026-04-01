@@ -6,7 +6,9 @@ from pydantic import AnyHttpUrl, ValidationError
 
 from pangloss.model_setup.field_definitions import RelationFieldDefinition
 from pangloss.model_setup.model_bases.document import Document
+from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 
 
@@ -193,3 +195,30 @@ def test_add_simple_relation_to_document():
         Statement.Create.model_fields["was_carried_out_by"].annotation
         is Person.ReferenceSet
     )
+
+
+@no_type_check
+def test_add_simple_relation_to_document_via_edge():
+
+    class Statement(Document):
+        was_carried_out_by: ViaEdge[Person, Certainty]
+
+    class Person(Entity):
+        pass
+
+    class Certainty(EdgeModel):
+        pass
+
+    assert Statement.Create
+    assert Statement.Create.model_fields["was_carried_out_by"]
+    assert (
+        Statement.Create.model_fields["was_carried_out_by"].annotation
+        is Person.ReferenceSet._via.Certainty
+    )
+
+    assert set(Person.ReferenceSet._via.Certainty.model_fields.keys()) == {
+        "edge_properties",
+        "id",
+        "label",
+        "type",
+    }

@@ -1,9 +1,15 @@
 from abc import ABC, abstractmethod
 from functools import cache
-from typing import TYPE_CHECKING, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr, create_model, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    PrivateAttr,
+    create_model,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
 if TYPE_CHECKING:
@@ -58,11 +64,16 @@ class GetItemViaAttrDict[T](dict):
 class _ActionClass(_BaseObject):
     _owner: ClassVar[type[_DeclaredClass]]
     _meta: ClassVar = MetaGetter()
-    _via: ClassVar[GetItemViaAttrDict[Self]] = GetItemViaAttrDict()
+    _via: ClassVar[GetItemViaAttrDict[Self]]
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        cls._via = GetItemViaAttrDict()
+        return super().__pydantic_init_subclass__(**kwargs)
 
     @classmethod
     @cache
-    def apply_edge_model(cls, edge_model: type[EdgeModel]):
+    def apply_edge_model(cls, edge_model: type[EdgeModel]) -> type[Self]:
         """Creates a variant of the model with additional 'edge_property' field
         of the type supplied"""
         model = create_model(

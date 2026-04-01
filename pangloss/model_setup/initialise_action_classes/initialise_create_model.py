@@ -183,9 +183,16 @@ def get_relation_annotation_types(
     types = []
     for type_option in field_definition.type_options:
         if isinstance(type_option, RelationToEntity):
-            types.append(type_option.annotated_type.ReferenceSet)
-            if type_option.annotated_type._meta.create_inline:
-                types.append(type_option.annotated_type.Create)
+            if type_option.edge_model:
+                types.append(
+                    type_option.annotated_type.ReferenceSet.apply_edge_model(
+                        type_option.edge_model
+                    )
+                )
+            else:
+                types.append(type_option.annotated_type.ReferenceSet)
+                if type_option.annotated_type._meta.create_inline:
+                    types.append(type_option.annotated_type.Create)
 
     if not types:
         return Any
