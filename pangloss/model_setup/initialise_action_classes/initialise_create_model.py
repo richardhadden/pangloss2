@@ -1,3 +1,4 @@
+from functools import cache
 from types import UnionType
 from typing import Annotated, ClassVar, Literal, TypeVar, Union
 from uuid import UUID
@@ -9,8 +10,11 @@ from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.field_definitions import (
     RelationFieldDefinition,
+    RelationToConjunction,
     RelationToDocument,
     RelationToEntity,
+    RelationToReifiedRelation,
+    RelationToTypeVar,
 )
 from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import (
@@ -163,10 +167,11 @@ def initialise_create_model(
     if not create_base_type:
         return
 
-    model.Create = pydantic_create_model(
+    model.Create = pydantic_create_model(  # ty:ignore[invalid-assignment]
         f"{model.__name__}Create",
         __base__=create_base_type,
         __validators__=get_model_validators(model),
+        __module__=model.__module__,
         _owner=(ClassVar[model], model),
         __config__=ConfigDict(alias_generator=to_camel),
         type=(Literal[model.__name__], model.__name__),  # type: ignore
@@ -176,6 +181,95 @@ def initialise_create_model(
     build_label_field_on_create_model(model)
 
     model.Create.model_rebuild(force=True)
+
+
+@cache
+def build_generic_create_model_from_type_option(
+    type_option: RelationToReifiedRelation | RelationToConjunction,
+):
+
+    generic_relation_type = type_option.base_type
+    initialise_create_model(generic_relation_type)
+    add_fields_to_create_model(generic_relation_type)
+    generic_relation_type.Create.model_rebuild(force=True)
+
+    type_names = ", ".join(
+        v.annotated_type.__name__ for v in type_option.parameter_type_options.values()
+    )
+
+    bound_create_model = pydantic_create_model(
+        f"{generic_relation_type.__name__}[{type_names}]Create",
+        __base__=generic_relation_type.Create,
+        __validators__=get_model_validators(generic_relation_type),
+        __module__=generic_relation_type.__module__,
+        _owner=(ClassVar[generic_relation_type], generic_relation_type),
+        __config__=ConfigDict(alias_generator=to_camel),
+        type=(Literal[generic_relation_type.__name__], generic_relation_type.__name__),  # ty:ignore[invalid-type-form]
+    )
+
+    type_names = tuple(
+        v.annotated_type for k, v in type_option.parameter_type_options.items()
+    )
+
+    for field_name, field_info in generic_relation_type.Create.model_fields.items():
+        bound_create_model.model_fields[field_name] = field_info
+
+    for (
+        field_name,
+        field_definition,
+    ) in generic_relation_type._meta.fields.relation_fields.items():
+        annotations = []
+        for reified_type_option in field_definition.type_options:
+            if isinstance(reified_type_option, RelationToTypeVar):
+                for to in (
+                    type_option.parameter_type_options[
+                        reified_type_option.type_var_name
+                    ]
+                ).type_options:
+                    if isinstance(to, RelationToEntity):
+                        if to.edge_model:
+                            annotations.append(
+                                to.annotated_type.ReferenceSet.apply_edge_model(
+                                    to.edge_model
+                                )
+                            )
+                        else:
+                            annotations.append(to.annotated_type.ReferenceSet)
+                    elif isinstance(to, RelationToDocument):
+                        if to.edge_model:
+                            annotations.append(
+                                to.annotated_type.Create.apply_edge_model(to.edge_model)
+                            )
+                        else:
+                            annotations.append(to.annotated_type.Create)
+                    elif isinstance(to, RelationToReifiedRelation):
+                        if to.edge_model:
+                            annotations.append(
+                                build_generic_create_model_from_type_option(
+                                    to
+                                ).apply_edge_model(to.edge_model)
+                            )
+                        annotations.append(
+                            build_generic_create_model_from_type_option(to)
+                        )
+
+        if field_definition.wrapper:
+            annotation = field_definition.wrapper[  # type: ignore
+                Annotated[Union[*annotations], Field(discriminator="type")]  # ty:ignore[invalid-type-form]
+            ]
+        else:
+            annotation = Union[*annotations]  # ty:ignore[invalid-type-form]
+
+        bound_create_model.model_fields[field_name] = FieldInfo(
+            annotation=annotation,
+            validation_alias=to_camel(field_name),
+            metadata=field_definition.validators,  # type: ignore
+            discriminator="type" if not field_definition.wrapper else None,
+        )
+
+        bound_create_model.model_rebuild(force=True)
+
+    return bound_create_model
 
 
 def get_relation_annotation_types(
@@ -205,13 +299,25 @@ def get_relation_annotation_types(
             else:
                 types.append(type_option.annotated_type.Create)
 
+        elif isinstance(type_option, RelationToReifiedRelation):
+            bound_reified_create_type = build_generic_create_model_from_type_option(
+                type_option
+            )
+
+            if type_option.edge_model:
+                types.append(
+                    bound_reified_create_type.apply_edge_model(type_option.edge_model)
+                )
+            else:
+                types.append(bound_reified_create_type)
+
     if not types:
         return None
 
     if field_definition.wrapper:
-        return field_definition.wrapper[
+        return field_definition.wrapper[  # type: ignore
             Annotated[Union[*types], Field(discriminator="type")]
-        ]  # type: ignore
+        ]
     return Union[*types]  # ty:ignore[invalid-type-form]
 
 
@@ -235,7 +341,6 @@ def add_fields_to_create_model(
         )
 
     for field_name, field_definition in model._meta.fields.relation_fields.items():
-        print(field_name)
         annotation = get_relation_annotation_types(field_definition)
 
         model.Create.model_fields[field_name] = FieldInfo(

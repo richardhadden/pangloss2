@@ -177,7 +177,7 @@ def build_relation_options(
                 RelationToReifiedRelation(
                     annotated_type=annotation,
                     edge_model=edge_model,
-                    reified_relation_type=origin,
+                    base_type=origin,
                     parameter_type_options=frozendict(type_options),
                 )
             )
@@ -188,7 +188,7 @@ def build_relation_options(
                     RelationToSemanticSpace(
                         annotated_type=annotation,
                         edge_model=edge_model,
-                        semantic_space_type=concrete_semantic_space,
+                        base_type=concrete_semantic_space,
                         parameter_type_options=frozendict(type_options),
                     )
                 )
@@ -199,7 +199,7 @@ def build_relation_options(
                     RelationToConjunction(
                         annotated_type=annotation,
                         edge_model=edge_model,
-                        conjunction_type=concrete_conjunction,
+                        base_type=concrete_conjunction,
                         parameter_type_options=frozendict(type_options),
                     )
                 )
@@ -215,7 +215,6 @@ def build_relation_options(
 
     if isclass(annotation) and issubclass(annotation, Entity):
         for concrete_type in get_concrete_types(annotation):
-            print("CT", concrete_type)
             relation_options.append(
                 RelationToEntity(
                     annotated_type=concrete_type,

@@ -587,9 +587,7 @@ def test_relation_via_reified():
     assert (
         statement_concerns_dog_field_type_option.annotated_type == Identification[Dog]
     )
-    assert (
-        statement_concerns_dog_field_type_option.reified_relation_type is Identification
-    )
+    assert statement_concerns_dog_field_type_option.base_type is Identification
     statement_concerns_dog_field_type_option_paramter_type_options_target = (
         statement_concerns_dog_field_type_option.parameter_type_options["Target"]
     )
@@ -651,7 +649,7 @@ def test_relation_via_reified_with_two_params():
     assert (
         statement_concerns_dog_field_type_option.annotated_type == WithProxy[Dog, Cat]
     )
-    assert statement_concerns_dog_field_type_option.reified_relation_type is WithProxy
+    assert statement_concerns_dog_field_type_option.base_type is WithProxy
     statement_concerns_dog_field_type_option_paramter_type_options_target = (
         statement_concerns_dog_field_type_option.parameter_type_options["Target"]
     )
@@ -744,7 +742,7 @@ def test_relation_via_double_reified():
         statement_concerns_dog_field_type_option.annotated_type
         == WithProxy[Identification[Dog], Identification[Cat]]
     )
-    assert statement_concerns_dog_field_type_option.reified_relation_type is WithProxy
+    assert statement_concerns_dog_field_type_option.base_type is WithProxy
 
     target_param_opts = statement_concerns_dog_field_type_option.parameter_type_options[
         "Target"
@@ -874,7 +872,7 @@ def test_relation_to_semantic_space():
     assert isinstance(content_type_option, RelationToSemanticSpace)
     assert content_type_option.annotated_type == Negative[Task]
     assert content_type_option.edge_model is None
-    assert content_type_option.semantic_space_type is Negative
+    assert content_type_option.base_type is Negative
 
     content_param_type_option = content_type_option.parameter_type_options["Contents"]
     assert content_param_type_option
@@ -914,12 +912,12 @@ def test_relation_to_semantic_space_includes_subclass():
     type_option_0 = [
         t
         for t in statement_action_field_type_options
-        if isinstance(t, RelationToSemanticSpace) and t.semantic_space_type is Negative
+        if isinstance(t, RelationToSemanticSpace) and t.base_type is Negative
     ][0]
     assert isinstance(type_option_0, RelationToSemanticSpace)
     assert type_option_0.annotated_type == Negative[Task]
     assert type_option_0.edge_model is None
-    assert type_option_0.semantic_space_type is Negative
+    assert type_option_0.base_type is Negative
     type_options_0_contents = type_option_0.parameter_type_options["Contents"]
     assert type_options_0_contents.type_var_name == "Contents"
     assert type_options_0_contents.type_options == frozenset(
@@ -929,12 +927,11 @@ def test_relation_to_semantic_space_includes_subclass():
     type_option_1 = [
         t
         for t in statement_action_field_type_options
-        if isinstance(t, RelationToSemanticSpace)
-        and t.semantic_space_type is ReallyNegative
+        if isinstance(t, RelationToSemanticSpace) and t.base_type is ReallyNegative
     ][0]
     assert type_option_1.annotated_type is Negative[Task]
     assert type_option_1.edge_model is None
-    assert type_option_1.semantic_space_type is ReallyNegative
+    assert type_option_1.base_type is ReallyNegative
     type_options_1_contents = type_option_1.parameter_type_options["Contents"]
     assert type_options_1_contents.type_var_name == "Contents"
     assert type_options_1_contents.type_options == frozenset(
@@ -970,8 +967,7 @@ def test_union_of_semantic_space_with_regular_type():
     negative_option = next(
         option
         for option in statement_action_field.type_options
-        if isinstance(option, RelationToSemanticSpace)
-        and option.semantic_space_type is Negative
+        if isinstance(option, RelationToSemanticSpace) and option.base_type is Negative
     )
     assert negative_option.annotated_type == Negative[Task]
     negative_contents_param = negative_option.parameter_type_options["Content"]
@@ -984,7 +980,7 @@ def test_union_of_semantic_space_with_regular_type():
         option
         for option in statement_action_field.type_options
         if isinstance(option, RelationToSemanticSpace)
-        and option.semantic_space_type is ReallyNegative
+        and option.base_type is ReallyNegative
     )
     assert really_negative_option.annotated_type == Negative[Task]
     really_negative_contents_param = really_negative_option.parameter_type_options[
@@ -1086,12 +1082,12 @@ def test_relation_to_conjunction():
     type_option_0 = [
         t
         for t in statement_action_field_type_options
-        if isinstance(t, RelationToConjunction) and t.conjunction_type is Causes
+        if isinstance(t, RelationToConjunction) and t.base_type is Causes
     ][0]
     assert isinstance(type_option_0, RelationToConjunction)
     assert type_option_0.annotated_type == Causes[Task, Incident]
     assert type_option_0.edge_model is None
-    assert type_option_0.conjunction_type is Causes
+    assert type_option_0.base_type is Causes
     type_options_0_cause = type_option_0.parameter_type_options["Cause"]
     assert type_options_0_cause.type_var_name == "Cause"
     assert type_options_0_cause.type_options == frozenset(
@@ -1106,11 +1102,11 @@ def test_relation_to_conjunction():
     type_option_1 = [
         t
         for t in statement_action_field_type_options
-        if isinstance(t, RelationToConjunction) and t.conjunction_type is ReallyCauses
+        if isinstance(t, RelationToConjunction) and t.base_type is ReallyCauses
     ][0]
     assert type_option_1.annotated_type == Causes[Task, Incident]
     assert type_option_1.edge_model is None
-    assert type_option_1.conjunction_type is ReallyCauses
+    assert type_option_1.base_type is ReallyCauses
     type_options_1_cause = type_option_1.parameter_type_options["Cause"]
     assert type_options_1_cause.type_var_name == "Cause"
     assert type_options_1_cause.type_options == frozenset(

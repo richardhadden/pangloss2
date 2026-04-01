@@ -133,7 +133,6 @@ class RelationFieldDefinition(FieldDefinition):
         type_options: set[RelationOption] | frozenset[RelationOption],
     ) -> bool:
         for type_option in type_options:
-            print(type_option)
             if isinstance(type_option, RelationToTypeVar):
                 return True
             if isinstance(type_option, RelationToReifiedRelation):
@@ -167,14 +166,14 @@ class RelationToEntity(RelationOption):
 @dataclass(frozen=True, kw_only=True)
 class RelationToSemanticSpace(RelationOption):
     annotated_type: TRelationFieldDefinitionAnnotation
-    semantic_space_type: type[SemanticSpace]
+    base_type: type[SemanticSpace]
     parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToConjunction(RelationOption):
     annotated_type: TRelationFieldDefinitionAnnotation
-    conjunction_type: type[Conjunction]
+    base_type: type[Conjunction]
     parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
@@ -189,7 +188,7 @@ class ParameterTypeOptions[T]:
 @dataclass(frozen=True, kw_only=True)
 class RelationToReifiedRelation(RelationOption):
     annotated_type: TRelationFieldDefinitionAnnotation
-    reified_relation_type: type[ReifiedRelation]
+    base_type: type[ReifiedRelation]
     parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 

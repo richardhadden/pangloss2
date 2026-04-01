@@ -16,3 +16,7 @@ class PanglossModelError(Exception):
 
 class PanglossInternalError(Exception):
     pass
+
+
+class PanglossRuntimeError(Exception):
+    pass

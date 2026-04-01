@@ -1,15 +1,17 @@
-from typing import Literal, get_args, no_type_check
+from typing import Literal, get_args, get_origin, no_type_check
 from uuid import UUID, uuid7
 
 import pytest
 from pydantic import AnyHttpUrl, ValidationError
 
-from pangloss.model_setup.field_definitions import RelationFieldDefinition
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
-from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
+from pangloss.model_setup.model_bases.reified_relation import (
+    ReifiedRelation,
+    _ReifiedRelationCreateBase,
+)
 
 
 @no_type_check
@@ -124,22 +126,6 @@ def test_create_model_for_entity_with_id():
     # With create_new=True set, an ID must also be provided
     with pytest.raises(ValidationError):
         Person.Create(label="Toby Jones", create_new=True)
-
-
-@no_type_check
-def test_typevar_fields():
-
-    class WithProxy[TTarget, TProxy](ReifiedRelation[TTarget]):
-        proxy: list[Identification[TProxy]]
-
-    class Identification[TTarget](ReifiedRelation[TTarget]):
-        pass
-
-    with_proxy_proxy_field_definition = WithProxy._meta.fields["proxy"]
-    assert isinstance(with_proxy_proxy_field_definition, RelationFieldDefinition)
-    assert with_proxy_proxy_field_definition.contains_typevar is True
-
-    assert list(WithProxy._meta.fields.typevar_fields.keys()) == ["target", "proxy"]
 
 
 @no_type_check
@@ -341,3 +327,52 @@ def test_add_self_reference_to_document():
         Order.Create.model_fields["thing_ordered"].annotation
         == Order.Create | DeferredOrder.Create | Task.Create | SubTask.Create
     )
+
+
+@no_type_check
+def test_relation_to_entity_via_reified_relation():
+    class Identification[TTarget](ReifiedRelation[TTarget]):
+        some_value: int
+
+    class Statement(Document):
+        is_about_person: Identification[Person]
+
+    class Person(Entity):
+        pass
+
+    assert issubclass(Identification.Create, _ReifiedRelationCreateBase)
+    assert Identification.Create.model_fields["some_value"].annotation is int
+
+    assert (
+        Statement.Create.model_fields["is_about_person"].annotation.__name__
+        == "Identification[Person]Create"
+    )
+
+    identification_person_create_model = Statement.Create.model_fields[
+        "is_about_person"
+    ].annotation
+    assert issubclass(identification_person_create_model, Identification.Create)
+    assert (
+        identification_person_create_model.model_fields["some_value"].annotation is int
+    )
+    assert identification_person_create_model._owner is Identification
+
+    target_annotation = identification_person_create_model.model_fields[
+        "target"
+    ].annotation
+    assert get_origin(target_annotation) is list
+    assert get_args(get_args(target_annotation)[0])[0] is Person.ReferenceSet
+
+    st_uuid = uuid7()
+
+    st = Statement.Create(
+        label="A Statement",
+        is_about_person={
+            "type": "Identification",
+            "target": [{"type": "Person", "id": st_uuid}],
+            "some_value": 1,
+        },
+    )
+
+    assert isinstance(st.is_about_person, identification_person_create_model)
+    assert st.is_about_person.target[0].id == st_uuid

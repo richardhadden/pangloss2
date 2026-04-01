@@ -74,6 +74,9 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
     ReferenceView: ClassVar[type[DocumentReferenceViewBase]]
     ReferenceSetBase: ClassVar[type[DocumentReferenceSetBase]]
 
+    def __new__(cls, *args, **kwargs):
+        return cls.Create(*args, **kwargs)
+
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
 
