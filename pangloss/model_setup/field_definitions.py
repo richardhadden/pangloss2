@@ -126,6 +126,7 @@ class RelationFieldDefinition(FieldDefinition):
     reverse_name: str
     subclasses_parent_fields: set[str | FieldSubclassing]
     wrapper: type[list | tuple] | None = None
+    validators: list[type[BaseMetadata]] = dataclass_field(default_factory=list)
 
     @staticmethod
     def type_option_contains_typevar(
@@ -219,6 +220,14 @@ class ModelFieldDict[K, V](dict[K, V]):
             if isinstance(
                 field_definition, (LiteralFieldDefinition, ListFieldDefinition)
             )
+        }
+
+    @property
+    def relation_fields(self) -> dict[K, RelationFieldDefinition]:
+        return {
+            field_name: field_definition
+            for field_name, field_definition in self.items()
+            if isinstance(field_definition, RelationFieldDefinition)
         }
 
 

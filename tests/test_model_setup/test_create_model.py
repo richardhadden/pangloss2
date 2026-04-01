@@ -180,8 +180,16 @@ def test_add_fields_to_document_create_model():
 
 @no_type_check
 def test_add_simple_relation_to_document():
+
     class Statement(Document):
         was_carried_out_by: Person
 
     class Person(Entity):
         pass
+
+    assert Statement.Create
+    assert Statement.Create.model_fields["was_carried_out_by"]
+    assert (
+        Statement.Create.model_fields["was_carried_out_by"].annotation
+        is Person.ReferenceSet
+    )

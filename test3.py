@@ -1,11 +1,10 @@
-from typing import Annotated
+from typing import ClassVar
 
-from annotated_types import MaxLen
 from pydantic import BaseModel
 
 
 class A(BaseModel):
-    thing: Annotated[str, MaxLen(1)]
+    thing: ClassVar[str]
 
 
-print(A.model_fields["thing"])
+print(A.__annotations_cache__)

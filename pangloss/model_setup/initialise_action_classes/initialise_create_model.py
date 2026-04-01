@@ -1,5 +1,5 @@
-import warnings
-from typing import ClassVar, Literal, TypeVar, get_args, get_type_hints
+from types import UnionType
+from typing import Any, ClassVar, Literal, TypeVar, Union
 from uuid import UUID
 
 from pydantic import AnyHttpUrl, ConfigDict, model_validator
@@ -7,16 +7,28 @@ from pydantic import create_model as pydantic_create_model
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
-from pangloss.model_setup.model_bases.base_object import _DeclaredClass
-from pangloss.model_setup.model_bases.conjunction import Conjunction
-from pangloss.model_setup.model_bases.document import Document
+from pangloss.model_setup.field_definitions import (
+    RelationFieldDefinition,
+    RelationToEntity,
+)
+from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
+from pangloss.model_setup.model_bases.conjunction import (
+    Conjunction,
+    _ConjunctionCreateBase,
+)
+from pangloss.model_setup.model_bases.document import Document, _DocumentCreateBase
 from pangloss.model_setup.model_bases.embedded import Embedded
-from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.entity import Entity, _EntityCreateBase
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     ReifiedRelationDocument,
+    _ReifiedRelationCreateBase,
+    _ReifiedRelationDocumentCreateBase,
 )
-from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
+from pangloss.model_setup.model_bases.semantic_space import (
+    SemanticSpace,
+    _SemanticSpaceCreateBase,
+)
 
 
 def check_create_and_id_present(self):
@@ -99,6 +111,32 @@ def can_have_create_model(model: type[_DeclaredClass]) -> bool:
     )
 
 
+def get_create_base_model_type(
+    model: type[
+        Document
+        | Embedded
+        | Entity
+        | ReifiedRelation
+        | ReifiedRelationDocument
+        | Conjunction
+        | SemanticSpace
+    ],
+) -> type[_CreateBase] | None:
+    if issubclass(model, Document):
+        return _DocumentCreateBase
+    elif issubclass(model, Entity):
+        return _EntityCreateBase
+    elif issubclass(model, ReifiedRelation):
+        return _ReifiedRelationCreateBase
+    elif issubclass(model, ReifiedRelationDocument):
+        return _ReifiedRelationDocumentCreateBase
+    elif issubclass(model, Conjunction):
+        return _ConjunctionCreateBase
+    elif issubclass(model, SemanticSpace):
+        return _SemanticSpaceCreateBase
+    return None
+
+
 def initialise_create_model(
     model: type[
         Document
@@ -119,17 +157,10 @@ def initialise_create_model(
     if "Create" in model.__dict__:
         return
 
-    try:  # TODO! Remove this guard once all tests passing
-        type_hints = get_type_hints(model)
-    except Exception:
-        return
-
-    if "Create" not in type_hints:
-        warnings.warn(f"Create class hint missing from {model.__name__}")
-        return
-
     # Extracts from the _DeclaredClass definition the annotation for .Create
-    create_base_type = get_args(get_args(type_hints["Create"])[0])[0]
+    create_base_type = get_create_base_model_type(model)
+    if not create_base_type:
+        return
 
     model.Create = pydantic_create_model(
         f"{model.__name__}Create",
@@ -144,6 +175,22 @@ def initialise_create_model(
     build_label_field_on_create_model(model)
 
     model.Create.model_rebuild(force=True)
+
+
+def get_relation_annotation_types(
+    field_definition: RelationFieldDefinition,
+) -> UnionType:
+    types = []
+    for type_option in field_definition.type_options:
+        if isinstance(type_option, RelationToEntity):
+            types.append(type_option.annotated_type.ReferenceSet)
+            if type_option.annotated_type._meta.create_inline:
+                types.append(type_option.annotated_type.Create)
+
+    if not types:
+        return Any
+
+    return Union[*types]  # ty:ignore[invalid-type-form]
 
 
 def add_fields_to_create_model(
@@ -161,6 +208,14 @@ def add_fields_to_create_model(
     for field_name, field_definition in model._meta.fields.literal_fields.items():
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
+            validation_alias=to_camel(field_name),
+            metadata=field_definition.validators,  # type: ignore
+        )
+
+    for field_name, field_definition in model._meta.fields.relation_fields.items():
+        annotation = get_relation_annotation_types(field_definition)
+        model.Create.model_fields[field_name] = FieldInfo(
+            annotation=annotation,
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
         )

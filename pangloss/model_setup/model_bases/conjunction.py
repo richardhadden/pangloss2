@@ -22,14 +22,14 @@ class ConjunctionMeta(BaseMeta):
         return self.field_definitions.fields
 
 
-class _ConjunctionCreate(_CreateBase):
+class _ConjunctionCreateBase(_CreateBase):
     pass
 
 
 class Conjunction(_DeclaredClass, WithMeta[ConjunctionMeta]):
     _meta: ClassVar[ConjunctionMeta] = ConjunctionMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    Create: ClassVar[type[_ConjunctionCreate]]
+    Create: ClassVar[type[_ConjunctionCreateBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
