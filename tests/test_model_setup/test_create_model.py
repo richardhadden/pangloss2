@@ -260,6 +260,9 @@ def test_add_simple_relation_from_document_to_entity_with_list_wrapper():
         label="A Statement", was_carried_out_by=[{"type": "Person", "id": uuid7()}]
     )
 
+    assert isinstance(st.was_carried_out_by, list)
+    assert isinstance(st.was_carried_out_by[0], Person.ReferenceSet)
+
 
 @no_type_check
 def test_add_simple_relation_from_document_to_entity_via_edge():
@@ -317,4 +320,24 @@ def test_add_relation_from_document_to_document_via_edge():
     assert (
         Statement.Create.model_fields["action"].annotation
         is Action.Create._via.Certainty
+    )
+
+
+@no_type_check
+def test_add_self_reference_to_document():
+    class DeferredOrder(Document):
+        deferred_order: Order
+
+    class Task(Document):
+        pass
+
+    class Order(Document):
+        thing_ordered: Order | DeferredOrder | Task
+
+    class SubTask(Task):
+        pass
+
+    assert (
+        Order.Create.model_fields["thing_ordered"].annotation
+        == Order.Create | DeferredOrder.Create | Task.Create | SubTask.Create
     )
