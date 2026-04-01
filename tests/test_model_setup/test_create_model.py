@@ -1,4 +1,4 @@
-from typing import Literal, no_type_check
+from typing import Literal, get_args, no_type_check
 from uuid import UUID, uuid7
 
 import pytest
@@ -218,6 +218,32 @@ def test_add_simple_relation_from_document_to_entity_inheriting():
 
 
 @no_type_check
+def test_add_simple_relation_from_document_to_by_union():
+
+    class Statement(Document):
+        was_carried_out_by: Person | Dude
+
+    class Person(Entity):
+        pass
+
+    class Dude(Entity):
+        pass
+
+    assert Statement.Create
+    assert Statement.Create.model_fields["was_carried_out_by"]
+    assert (
+        Statement.Create.model_fields["was_carried_out_by"].annotation
+        == Person.ReferenceSet | Dude.ReferenceSet
+    )
+
+    st = Statement.Create(
+        label="A Statement", was_carried_out_by={"type": "Dude", "id": uuid7()}
+    )
+    assert st.label == "A Statement"
+    assert isinstance(st.was_carried_out_by, Dude.ReferenceSet)
+
+
+@no_type_check
 def test_add_simple_relation_from_document_to_entity_with_list_wrapper():
     class Statement(Document):
         was_carried_out_by: list[Person]
@@ -227,9 +253,11 @@ def test_add_simple_relation_from_document_to_entity_with_list_wrapper():
 
     assert Statement.Create
     assert Statement.Create.model_fields["was_carried_out_by"]
-    assert (
-        Statement.Create.model_fields["was_carried_out_by"].annotation
-        == list[Person.ReferenceSet]
+    annotation = Statement.Create.model_fields["was_carried_out_by"].annotation
+    assert get_args(get_args(annotation)[0])[0] is Person.ReferenceSet
+
+    st = Statement.Create(
+        label="A Statement", was_carried_out_by=[{"type": "Person", "id": uuid7()}]
     )
 
 

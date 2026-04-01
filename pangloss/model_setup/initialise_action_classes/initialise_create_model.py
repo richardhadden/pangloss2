@@ -1,8 +1,8 @@
 from types import UnionType
-from typing import Any, ClassVar, Literal, TypeVar, Union
+from typing import Annotated, ClassVar, Literal, TypeVar, Union
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, ConfigDict, model_validator
+from pydantic import AnyHttpUrl, ConfigDict, Field, model_validator
 from pydantic import create_model as pydantic_create_model
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
@@ -206,10 +206,12 @@ def get_relation_annotation_types(
                 types.append(type_option.annotated_type.Create)
 
     if not types:
-        return Any
+        return None
 
     if field_definition.wrapper:
-        return field_definition.wrapper[Union[*types]]  # type: ignore
+        return field_definition.wrapper[
+            Annotated[Union[*types], Field(discriminator="type")]
+        ]  # type: ignore
     return Union[*types]  # ty:ignore[invalid-type-form]
 
 
@@ -235,10 +237,12 @@ def add_fields_to_create_model(
     for field_name, field_definition in model._meta.fields.relation_fields.items():
         print(field_name)
         annotation = get_relation_annotation_types(field_definition)
+
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=annotation,
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
+            discriminator="type" if not field_definition.wrapper else None,
         )
 
     model.Create.model_rebuild(force=True)
