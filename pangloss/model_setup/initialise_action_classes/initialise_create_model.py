@@ -9,6 +9,7 @@ from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.field_definitions import (
     RelationFieldDefinition,
+    RelationToDocument,
     RelationToEntity,
 )
 from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
@@ -179,7 +180,7 @@ def initialise_create_model(
 
 def get_relation_annotation_types(
     field_definition: RelationFieldDefinition,
-) -> UnionType:
+) -> UnionType | type[list[UnionType]] | tuple[list[UnionType]]:
     types = []
     for type_option in field_definition.type_options:
         if isinstance(type_option, RelationToEntity):
@@ -194,9 +195,21 @@ def get_relation_annotation_types(
                 if type_option.annotated_type._meta.create_inline:
                     types.append(type_option.annotated_type.Create)
 
+        elif isinstance(type_option, RelationToDocument):
+            if type_option.edge_model:
+                types.append(
+                    type_option.annotated_type.Create.apply_edge_model(
+                        type_option.edge_model
+                    )
+                )
+            else:
+                types.append(type_option.annotated_type.Create)
+
     if not types:
         return Any
 
+    if field_definition.wrapper:
+        return field_definition.wrapper[Union[*types]]  # type: ignore
     return Union[*types]  # ty:ignore[invalid-type-form]
 
 
@@ -220,6 +233,7 @@ def add_fields_to_create_model(
         )
 
     for field_name, field_definition in model._meta.fields.relation_fields.items():
+        print(field_name)
         annotation = get_relation_annotation_types(field_definition)
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=annotation,

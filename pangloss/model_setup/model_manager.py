@@ -285,12 +285,15 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         Models that are still missing dependencies are left untouched and will be
         revisited when additional types are registered.
         """
+        print("=======")
+        print("Try initialise all models", declared_class.__name__)
 
         # Go through all models and try to rebuild, which will succeed is all
         # dependencies have also been declared; otherwise, wait for more models
         # to be declared
         for model in cls.all_models().values():
             if not model.__pydantic_complete__:
+                print(model.__name__, "not complete")
                 try:
                     model.model_rebuild(_types_namespace=cls.all_models())
                 except PydanticUndefinedAnnotation:
@@ -301,6 +304,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         # Check all models so far have no undeclared dependencies; otherwise, return
         if not all(model.__pydantic_complete__ for model in cls.all_models().values()):
             return
+
+        ModelManager.initialise_models([declared_class])
 
         # Get models that have not been initialised
         uninitialised_models = [
@@ -327,23 +332,26 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
     @staticmethod
     def initialise_models(uninitialised_models):
+        print("-------")
+        print("Calling initialise models", [m.__name__ for m in uninitialised_models])
         for model in uninitialised_models:
             try:
                 initialise_field_definitions(model)
                 initialise_create_model(model)
             except AttributeError:
-                pass
+                print(model.__name__, "Initialising Create Model fails")
 
         for model in uninitialised_models:
             try:
                 initialise_reference_model(model)
             except AttributeError:
-                pass
+                print(model.__name__, "Initialising Reference Model fails")
 
         for model in uninitialised_models:
             try:
+                print(">", model)
                 add_fields_to_create_model(model)
                 model._initialised = True
                 model.model_rebuild(force=True)
             except AttributeError:
-                pass
+                print(model.__name__, "Adding field to Create Model fails")

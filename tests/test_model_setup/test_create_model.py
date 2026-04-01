@@ -181,7 +181,7 @@ def test_add_fields_to_document_create_model():
 
 
 @no_type_check
-def test_add_simple_relation_to_document():
+def test_add_simple_relation_from_document_to_entity():
 
     class Statement(Document):
         was_carried_out_by: Person
@@ -198,7 +198,43 @@ def test_add_simple_relation_to_document():
 
 
 @no_type_check
-def test_add_simple_relation_to_document_via_edge():
+def test_add_simple_relation_from_document_to_entity_inheriting():
+
+    class Statement(Document):
+        was_carried_out_by: Person
+
+    class Person(Entity):
+        pass
+
+    class Dude(Person):
+        pass
+
+    assert Statement.Create
+    assert Statement.Create.model_fields["was_carried_out_by"]
+    assert (
+        Statement.Create.model_fields["was_carried_out_by"].annotation
+        == Person.ReferenceSet | Dude.ReferenceSet
+    )
+
+
+@no_type_check
+def test_add_simple_relation_from_document_to_entity_with_list_wrapper():
+    class Statement(Document):
+        was_carried_out_by: list[Person]
+
+    class Person(Entity):
+        pass
+
+    assert Statement.Create
+    assert Statement.Create.model_fields["was_carried_out_by"]
+    assert (
+        Statement.Create.model_fields["was_carried_out_by"].annotation
+        == list[Person.ReferenceSet]
+    )
+
+
+@no_type_check
+def test_add_simple_relation_from_document_to_entity_via_edge():
 
     class Statement(Document):
         was_carried_out_by: ViaEdge[Person, Certainty]
@@ -222,3 +258,35 @@ def test_add_simple_relation_to_document_via_edge():
         "label",
         "type",
     }
+
+
+@no_type_check
+def test_add_relation_from_document_to_document():
+    class Statement(Document):
+        action: Action
+
+    class Action(Document):
+        pass
+
+    assert "action" in Statement._meta.fields
+    assert Statement.Create.model_fields["action"]
+    assert Statement.Create.model_fields["action"].annotation is Action.Create
+
+
+@no_type_check
+def test_add_relation_from_document_to_document_via_edge():
+    class Statement(Document):
+        action: ViaEdge[Action, Certainty]
+
+    class Action(Document):
+        pass
+
+    class Certainty(EdgeModel):
+        pass
+
+    assert "action" in Statement._meta.fields
+    assert Statement.Create.model_fields["action"]
+    assert (
+        Statement.Create.model_fields["action"].annotation
+        is Action.Create._via.Certainty
+    )

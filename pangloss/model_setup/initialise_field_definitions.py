@@ -215,6 +215,7 @@ def build_relation_options(
 
     if isclass(annotation) and issubclass(annotation, Entity):
         for concrete_type in get_concrete_types(annotation):
+            print("CT", concrete_type)
             relation_options.append(
                 RelationToEntity(
                     annotated_type=concrete_type,
