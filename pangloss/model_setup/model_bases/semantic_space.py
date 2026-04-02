@@ -15,6 +15,7 @@ class SemanticSpaceMeta(BaseMeta):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _owner_class: type[SemanticSpace] | InheritValue = InheritValue.AS_DEFAULT
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
+    require_label: bool | InheritValue = False
     field_definitions: ModelFields = Field(default_factory=ModelFields)
 
     @property

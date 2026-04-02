@@ -5,6 +5,7 @@ from uuid import UUID, uuid7
 import pytest
 from pydantic import AnyHttpUrl, ValidationError
 
+from pangloss.exceptions import PanglossMetaError
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
@@ -13,7 +14,10 @@ from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     _ReifiedRelationCreateBase,
 )
-from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
+from pangloss.model_setup.model_bases.semantic_space import (
+    SemanticSpace,
+    _SemanticSpaceCreateBase,
+)
 
 
 @no_type_check
@@ -105,6 +109,17 @@ def test_create_model_for_entity():
 
     assert "id" not in Person.Create.model_fields
     assert "label" in Person.Create.model_fields
+
+
+@no_type_check
+def test_entity_meta_requires_create_id_if_create_inline():
+    with pytest.raises(PanglossMetaError):
+
+        class Fails(Entity):
+            _meta = Entity.Meta(create_inline=True)
+
+    class Works(Entity):
+        _meta = Entity.Meta(create_inline=True, create_with_id=True)
 
 
 @no_type_check
@@ -380,6 +395,7 @@ def test_relation_to_entity_via_reified_relation():
     assert st.is_about_person.target[0].id == st_uuid
 
 
+@no_type_check
 def test_relation_with_semantic_space():
     class Negative[T](SemanticSpace[T]):
         pass
@@ -388,7 +404,7 @@ def test_relation_with_semantic_space():
         has_statement: list[Statement | Negative[Statement]]
 
     class Statement(Document):
-        pass
+        text: str
 
     statement_field = Factoid.Create.model_fields["has_statement"]
     assert statement_field
@@ -402,4 +418,30 @@ def test_relation_with_semantic_space():
         ["StatementCreate", "Negative[Statement]Create"]
     )
 
-    # d = Factoid(label="A Factoid", has_statement=[{"type": "Negative", "contents": []}])
+    Negative_Statement_Create: type[_SemanticSpaceCreateBase] = [
+        c for c in type_union_items if c.__name__ == "Negative[Statement]Create"
+    ][0]
+
+    assert issubclass(Negative_Statement_Create, _SemanticSpaceCreateBase)
+
+    f = Factoid(
+        label="A Factoid",
+        has_statement=[
+            {
+                "type": "Negative",
+                "contents": [
+                    {
+                        "type": "Statement",
+                        "label": "Yohoo!",
+                        "text": "Woo",
+                    }
+                ],
+            }
+        ],
+    )
+
+    assert f.label == "A Factoid"
+    assert f.has_statement[0].type == "Negative"
+    assert isinstance(f.has_statement[0], Negative.Create)
+    assert f.has_statement[0].contents[0].type == "Statement"
+    assert isinstance(f.has_statement[0].contents[0], Statement.Create)

@@ -186,18 +186,32 @@ def initialise_create_model(
 
 @cache
 def build_generic_create_model_from_type_option(
-    type_option: RelationToReifiedRelation | RelationToConjunction,
+    type_option: RelationToReifiedRelation
+    | RelationToConjunction
+    | RelationToSemanticSpace,
 ):
+    """Taking a type option, build a Model.Create for each type option with the type options
+    bound to the appropriate fields"""
 
+    # Get the generic base type
     generic_relation_type = type_option.base_type
+
+    # Assure that Create is initalised on this model
     initialise_create_model(generic_relation_type)
+
+    # Add the non-TypeVar fields to the base model
     add_fields_to_create_model(generic_relation_type)
+
+    # Rebuild
     generic_relation_type.Create.model_rebuild(force=True)
 
+    # We need to name our class with the bound fields, in the form Generic[type_names],
+    # so extract the type names
     type_names = ", ".join(
         v.annotated_type.__name__ for v in type_option.parameter_type_options.values()
     )
 
+    # Create a bound model
     bound_create_model = pydantic_create_model(
         f"{generic_relation_type.__name__}[{type_names}]Create",
         __base__=generic_relation_type.Create,
@@ -208,42 +222,72 @@ def build_generic_create_model_from_type_option(
         type=(Literal[generic_relation_type.__name__], generic_relation_type.__name__),  # ty:ignore[invalid-type-form]
     )
 
-    type_names = tuple(
-        v.annotated_type for k, v in type_option.parameter_type_options.items()
-    )
-
+    # For some reason, we need to manually add all the fields from the Generic unbound type
+    # (you would have thought inheriting as __base__ above would have done this, but no)
     for field_name, field_info in generic_relation_type.Create.model_fields.items():
         bound_create_model.model_fields[field_name] = field_info
 
+    # Now, go through all the relation fields on the Generic type
     for (
         field_name,
         field_definition,
     ) in generic_relation_type._meta.fields.relation_fields.items():
+        # Initialise a list of possible annotations for this field
         annotations = []
-        for reified_type_option in field_definition.type_options:
-            if isinstance(reified_type_option, RelationToTypeVar):
+
+        # Iterate the type_options for this field
+        for generic_type_option in field_definition.type_options:
+            if isinstance(generic_type_option, RelationToTypeVar):
+                # Look up the actual type options based on the typevar name
                 for to in (
                     type_option.parameter_type_options[
-                        reified_type_option.type_var_name
+                        generic_type_option.type_var_name
                     ]
                 ).type_options:
+                    # For relation to entity we want to use ReferenceSet
                     if isinstance(to, RelationToEntity):
+                        # ... if there is an edge model, add the applied_edge_model
+                        # version of annotated_type.ReferenceSet to annotation
                         if to.edge_model:
                             annotations.append(
                                 to.annotated_type.ReferenceSet.apply_edge_model(
                                     to.edge_model
                                 )
                             )
+                            if to.annotated_type._meta.create_inline:
+                                annotations.append(
+                                    to.annotated_type.Create.apply_edge_model(
+                                        to.edge_model
+                                    )
+                                )
                         else:
+                            # ... otherwise, just add the annotated_type.ReferenceSet
                             annotations.append(to.annotated_type.ReferenceSet)
+                            if to.annotated_type._meta.create_inline:
+                                annotations.append(to.annotated_type.Create)
+
+                    # If relation to Document...
                     elif isinstance(to, RelationToDocument):
+                        # Add edge to Document.Create and use
                         if to.edge_model:
                             annotations.append(
                                 to.annotated_type.Create.apply_edge_model(to.edge_model)
                             )
                         else:
+                            # Add or use Document.Create
                             annotations.append(to.annotated_type.Create)
-                    elif isinstance(to, RelationToReifiedRelation):
+
+                    # Otherwise, if it is anything that can be generic,
+                    # pass the type option back to the this function to get the
+                    # internal bound generic at the next level
+                    elif isinstance(
+                        to,
+                        (
+                            RelationToReifiedRelation,
+                            RelationToConjunction,
+                            RelationToSemanticSpace,
+                        ),
+                    ):
                         if to.edge_model:
                             annotations.append(
                                 build_generic_create_model_from_type_option(

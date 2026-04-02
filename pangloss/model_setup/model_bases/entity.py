@@ -1,8 +1,9 @@
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Self
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
+from pangloss.exceptions import PanglossMetaError
 from pangloss.model_setup.field_definitions import (
     FieldDefinition,
     ModelFieldDict,
@@ -36,12 +37,20 @@ class EntityMeta(BaseMeta):
             return self.field_definitions.fields
         raise Exception(f"{self.__class__.__name__}.field_definition missing")
 
+    @model_validator(mode="after")
+    def check_create_with_id_set_with_create_inline(self) -> Self:
+        if self.create_inline and not self.create_with_id:
+            raise PanglossMetaError(
+                "If EntityMeta.create_inline=True, EntityMeta.create_with_id must also be set to True"
+            )
+        return self
+
 
 class _EntityCreateBase(_CreateBase):
     pass
 
 
-class _EntityReferenceSet(_ReferenceSetBase):
+class _EntityReferenceSetBase(_ReferenceSetBase):
     pass
 
 
@@ -50,7 +59,7 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
     _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_EntityCreateBase]]
-    ReferenceSet: ClassVar[type[_EntityReferenceSet]]
+    ReferenceSet: ClassVar[type[_EntityReferenceSetBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
@@ -60,7 +69,7 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
 
         ModelManager.register_entity(cls)
 
-        cls._meta = cls.__dict__.get("_meta", EntityMeta())  # pyright: ignore[reportIncompatibleVariableOverride]
+        cls._meta = cls.__dict__.get("_meta", EntityMeta(_owner_class=cls))  # pyright: ignore[reportIncompatibleVariableOverride]
 
         cls._meta._owner_class = cls
 
