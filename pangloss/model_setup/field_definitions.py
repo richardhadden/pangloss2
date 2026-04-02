@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
 
 from annotated_types import BaseMetadata
 from frozendict import frozendict
@@ -170,6 +170,13 @@ class RelationToSemanticSpace(RelationOption):
     parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
+@runtime_checkable
+class RelationToGeneric(Protocol):
+    annotated_type: TRelationFieldDefinitionAnnotation
+    base_type: type[Conjunction]
+    parameter_type_options: frozendict[str, ParameterTypeOptions]
+
+
 @dataclass(frozen=True, kw_only=True)
 class RelationToConjunction(RelationOption):
     annotated_type: TRelationFieldDefinitionAnnotation
@@ -195,6 +202,8 @@ class RelationToReifiedRelation(RelationOption):
 @dataclass(frozen=True, kw_only=True)
 class RelationToReifiedRelationDocument(RelationOption):
     annotated_type: type[ReifiedRelationDocument]
+    base_type: type[ReifiedRelation]
+    parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
 @dataclass(frozen=True, kw_only=True)

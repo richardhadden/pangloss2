@@ -3,18 +3,18 @@ from types import UnionType
 from typing import Annotated, ClassVar, Literal, TypeVar, Union
 from uuid import UUID
 
+from frozendict import frozendict
 from pydantic import AnyHttpUrl, ConfigDict, Field, model_validator
 from pydantic import create_model as pydantic_create_model
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.field_definitions import (
+    ParameterTypeOptions,
     RelationFieldDefinition,
-    RelationToConjunction,
     RelationToDocument,
     RelationToEntity,
-    RelationToReifiedRelation,
-    RelationToSemanticSpace,
+    RelationToGeneric,
     RelationToTypeVar,
 )
 from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
@@ -184,11 +184,24 @@ def initialise_create_model(
     model.Create.model_rebuild(force=True)
 
 
+def recursively_get_generic_naming(
+    parameter_type_options: frozendict[str, ParameterTypeOptions],
+):
+    names = []
+    for pto in parameter_type_options.values():
+        for to in pto.type_options:
+            if isinstance(to, RelationToGeneric):
+                names.append(
+                    f"{to.base_type.__name__}[{recursively_get_generic_naming(to.parameter_type_options)}]"
+                )
+            elif isinstance(to, (RelationToEntity, RelationToDocument)):
+                names.append(to.annotated_type.__name__)
+    return f"{', '.join(names)}"
+
+
 @cache
 def build_generic_create_model_from_type_option(
-    type_option: RelationToReifiedRelation
-    | RelationToConjunction
-    | RelationToSemanticSpace,
+    type_option: RelationToGeneric,
 ):
     """Taking a type option, build a Model.Create for each type option with the type options
     bound to the appropriate fields"""
@@ -206,10 +219,8 @@ def build_generic_create_model_from_type_option(
     generic_relation_type.Create.model_rebuild(force=True)
 
     # We need to name our class with the bound fields, in the form Generic[type_names],
-    # so extract the type names
-    type_names = ", ".join(
-        v.annotated_type.__name__ for v in type_option.parameter_type_options.values()
-    )
+    # so extract the type names (recursing down)
+    type_names = recursively_get_generic_naming(type_option.parameter_type_options)
 
     # Create a bound model
     bound_create_model = pydantic_create_model(
@@ -280,14 +291,7 @@ def build_generic_create_model_from_type_option(
                     # Otherwise, if it is anything that can be generic,
                     # pass the type option back to the this function to get the
                     # internal bound generic at the next level
-                    elif isinstance(
-                        to,
-                        (
-                            RelationToReifiedRelation,
-                            RelationToConjunction,
-                            RelationToSemanticSpace,
-                        ),
-                    ):
+                    elif isinstance(to, RelationToGeneric):
                         if to.edge_model:
                             annotations.append(
                                 build_generic_create_model_from_type_option(
@@ -345,7 +349,8 @@ def get_relation_annotation_types(
                 types.append(type_option.annotated_type.Create)
 
         elif isinstance(
-            type_option, (RelationToReifiedRelation, RelationToSemanticSpace)
+            type_option,
+            (RelationToGeneric),
         ):
             bound_reified_create_type = build_generic_create_model_from_type_option(
                 type_option

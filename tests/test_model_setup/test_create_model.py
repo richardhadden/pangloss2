@@ -6,6 +6,10 @@ import pytest
 from pydantic import AnyHttpUrl, ValidationError
 
 from pangloss.exceptions import PanglossMetaError
+from pangloss.model_setup.model_bases.conjunction import (
+    Conjunction,
+    _ConjunctionCreateBase,
+)
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
@@ -396,6 +400,95 @@ def test_relation_to_entity_via_reified_relation():
 
 
 @no_type_check
+def test_relation_with_double_reified_relation():
+    class WithProxy[TTarget, TProxy](ReifiedRelation[TTarget]):
+        proxy: list[TProxy]
+
+    class Identification[T](ReifiedRelation[T]):
+        some_value: int
+
+    class Statement(Document):
+        is_about_person: WithProxy[Identification[Person], Identification[Person]]
+
+    class Person(Entity):
+        pass
+
+    is_about_person_field = Statement.Create.model_fields["is_about_person"]
+    assert (
+        is_about_person_field.annotation.__name__
+        == "WithProxy[Identification[Person], Identification[Person]]Create"
+    )
+    assert issubclass(is_about_person_field.annotation, WithProxy.Create)
+    assert is_about_person_field.annotation.model_fields["target"].annotation
+    proxy_target_annotation = is_about_person_field.annotation.model_fields[
+        "target"
+    ].annotation
+    assert get_origin(proxy_target_annotation) is list
+    assert get_origin(get_args(proxy_target_annotation)[0]) is Annotated
+
+    proxy_identification_target_annotation = get_args(
+        get_args(proxy_target_annotation)[0]
+    )[0]
+    assert issubclass(proxy_identification_target_annotation, Identification.Create)
+    assert (
+        get_origin(
+            proxy_identification_target_annotation.model_fields["target"].annotation
+        )
+        is list
+    )
+    assert (
+        get_origin(
+            get_args(
+                proxy_identification_target_annotation.model_fields["target"].annotation
+            )[0]
+        )
+        is Annotated
+    )
+    assert (
+        get_args(
+            get_args(
+                proxy_identification_target_annotation.model_fields["target"].annotation
+            )[0]
+        )[0]
+        is Person.ReferenceSet
+    )
+
+    assert is_about_person_field.annotation.model_fields["proxy"].annotation
+    proxy_proxy_annotation = is_about_person_field.annotation.model_fields[
+        "proxy"
+    ].annotation
+    assert get_origin(proxy_proxy_annotation) is list
+    assert get_origin(get_args(proxy_proxy_annotation)[0]) is Annotated
+
+    proxy_identification_target_annotation = get_args(
+        get_args(proxy_proxy_annotation)[0]
+    )[0]
+    assert issubclass(proxy_identification_target_annotation, Identification.Create)
+    assert (
+        get_origin(
+            proxy_identification_target_annotation.model_fields["target"].annotation
+        )
+        is list
+    )
+    assert (
+        get_origin(
+            get_args(
+                proxy_identification_target_annotation.model_fields["target"].annotation
+            )[0]
+        )
+        is Annotated
+    )
+    assert (
+        get_args(
+            get_args(
+                proxy_identification_target_annotation.model_fields["target"].annotation
+            )[0]
+        )[0]
+        is Person.ReferenceSet
+    )
+
+
+@no_type_check
 def test_relation_with_semantic_space():
     class Negative[T](SemanticSpace[T]):
         pass
@@ -445,3 +538,84 @@ def test_relation_with_semantic_space():
     assert isinstance(f.has_statement[0], Negative.Create)
     assert f.has_statement[0].contents[0].type == "Statement"
     assert isinstance(f.has_statement[0].contents[0], Statement.Create)
+
+
+@no_type_check
+def test_relation_with_conjunction():
+    class Causes[TCause, TResult](Conjunction):
+        cause: TCause
+        result: TResult
+
+    class Statement(Document):
+        pass
+
+    class Factoid(Document):
+        has_statements: Statement | Causes[Statement, Statement]
+
+    # Check that Factoid.Create has the has_statements field
+    assert "has_statements" in Factoid.Create.model_fields
+
+    # Check the annotation is a Union
+    has_statements_field = Factoid.Create.model_fields["has_statements"]
+    assert has_statements_field
+    annotation = has_statements_field.annotation
+
+    assert isinstance(annotation, UnionType)
+    union_items = get_args(annotation)
+    assert len(union_items) == 2
+    assert set(t.__name__ for t in union_items) == {
+        "StatementCreate",
+        "Causes[Statement, Statement]Create",
+    }
+
+    # Check that Causes has a Create model
+    assert hasattr(Causes, "Create")
+    assert issubclass(Causes.Create, _ConjunctionCreateBase)
+    print(union_items)
+    # Check that the specialized Causes[Statement, Statement] has a Create model
+
+    causes_statement_create = [
+        item
+        for item in union_items
+        if item.__name__ == "Causes[Statement, Statement]Create"
+    ][0]  # The Causes[Statement, Statement]Create
+    assert issubclass(causes_statement_create, Causes.Create)
+    assert "cause" in causes_statement_create.model_fields
+    assert "result" in causes_statement_create.model_fields
+    assert causes_statement_create.model_fields["cause"].annotation == Statement.Create
+    assert causes_statement_create.model_fields["result"].annotation == Statement.Create
+
+    # Create an instance with a Statement
+    f1 = Factoid.Create(
+        label="A Factoid",
+        has_statements={
+            "type": "Statement",
+            "label": "A Statement",
+        },
+    )
+    assert f1.label == "A Factoid"
+    assert f1.has_statements.type == "Statement"
+    assert isinstance(f1.has_statements, Statement.Create)
+
+    # Create an instance with a Causes conjunction
+    f2 = Factoid.Create(
+        label="Another Factoid",
+        has_statements={
+            "type": "Causes",
+            "cause": {
+                "type": "Statement",
+                "label": "Cause Statement",
+            },
+            "result": {
+                "type": "Statement",
+                "label": "Result Statement",
+            },
+        },
+    )
+    assert f2.label == "Another Factoid"
+    assert f2.has_statements.type == "Causes"
+    assert isinstance(f2.has_statements, causes_statement_create)
+    assert f2.has_statements.cause.type == "Statement"
+    assert isinstance(f2.has_statements.cause, Statement.Create)
+    assert f2.has_statements.result.type == "Statement"
+    assert isinstance(f2.has_statements.result, Statement.Create)
