@@ -816,16 +816,22 @@ def test_semantic_space_fields():
     negative_contents_field = Negative._meta.fields["contents"]
     assert negative_contents_field
     assert isinstance(negative_contents_field, RelationFieldDefinition)
-    assert isinstance(negative_contents_field.annotated_type, TypeVar)
-    assert negative_contents_field.annotated_type.__name__ == "Contents"
+    assert get_origin(negative_contents_field.annotated_type) is list
+    assert isinstance(get_args(negative_contents_field.annotated_type)[0], TypeVar)
+    annotated_type = get_args(negative_contents_field.annotated_type)[0]
+    assert annotated_type.__name__ == "Contents"
     assert negative_contents_field.field_name == "contents"
     assert negative_contents_field.field_on_model is Negative
 
     really_negative_contents_field = ReallyNegative._meta.fields["contents"]
     assert really_negative_contents_field
     assert isinstance(really_negative_contents_field, RelationFieldDefinition)
-    assert isinstance(really_negative_contents_field.annotated_type, TypeVar)
-    assert really_negative_contents_field.annotated_type.__name__ == "Contents"
+    assert get_origin(really_negative_contents_field.annotated_type) is list
+    assert isinstance(
+        get_args(really_negative_contents_field.annotated_type)[0], TypeVar
+    )
+    annotated_type = get_args(really_negative_contents_field.annotated_type)[0]
+    assert annotated_type.__name__ == "Contents"
     assert really_negative_contents_field.field_name == "contents"
     assert really_negative_contents_field.field_on_model is ReallyNegative
     really_negative_stuff_field = ReallyNegative._meta.fields["stuff"]
@@ -839,10 +845,11 @@ def test_semantic_space_fields():
     assert isinstance(
         non_parameterised_negative_contents_field, RelationFieldDefinition
     )
-    assert isinstance(non_parameterised_negative_contents_field.annotated_type, TypeVar)
-    assert (
-        non_parameterised_negative_contents_field.annotated_type.__name__ == "Contents"
-    )
+    assert get_origin(non_parameterised_negative_contents_field.annotated_type) is list
+    annotated_type = get_args(non_parameterised_negative_contents_field.annotated_type)[
+        0
+    ]
+    assert annotated_type.__name__ == "Contents"
     assert non_parameterised_negative_contents_field.field_name == "contents"
     assert (
         non_parameterised_negative_contents_field.field_on_model

@@ -1,4 +1,5 @@
-from typing import Literal, get_args, get_origin, no_type_check
+from types import UnionType
+from typing import Annotated, Literal, get_args, get_origin, no_type_check
 from uuid import UUID, uuid7
 
 import pytest
@@ -12,6 +13,7 @@ from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     _ReifiedRelationCreateBase,
 )
+from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 
 
 @no_type_check
@@ -376,3 +378,28 @@ def test_relation_to_entity_via_reified_relation():
 
     assert isinstance(st.is_about_person, identification_person_create_model)
     assert st.is_about_person.target[0].id == st_uuid
+
+
+def test_relation_with_semantic_space():
+    class Negative[T](SemanticSpace[T]):
+        pass
+
+    class Factoid(Document):
+        has_statement: list[Statement | Negative[Statement]]
+
+    class Statement(Document):
+        pass
+
+    statement_field = Factoid.Create.model_fields["has_statement"]
+    assert statement_field
+    assert get_origin(statement_field.annotation) is list
+    assert get_origin(get_args(statement_field.annotation)[0]) is Annotated
+    # Having peeled away the list and the Annotated...
+    type_union = get_args(get_args(statement_field.annotation)[0])[0]
+    assert isinstance(type_union, UnionType)
+    type_union_items = get_args(type_union)
+    assert set(t.__name__ for t in type_union_items) == set(
+        ["StatementCreate", "Negative[Statement]Create"]
+    )
+
+    # d = Factoid(label="A Factoid", has_statement=[{"type": "Negative", "contents": []}])

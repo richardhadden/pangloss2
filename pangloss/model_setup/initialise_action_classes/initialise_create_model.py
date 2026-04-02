@@ -14,6 +14,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToDocument,
     RelationToEntity,
     RelationToReifiedRelation,
+    RelationToSemanticSpace,
     RelationToTypeVar,
 )
 from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
@@ -299,7 +300,9 @@ def get_relation_annotation_types(
             else:
                 types.append(type_option.annotated_type.Create)
 
-        elif isinstance(type_option, RelationToReifiedRelation):
+        elif isinstance(
+            type_option, (RelationToReifiedRelation, RelationToSemanticSpace)
+        ):
             bound_reified_create_type = build_generic_create_model_from_type_option(
                 type_option
             )

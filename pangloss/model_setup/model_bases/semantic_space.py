@@ -26,12 +26,12 @@ class _SemanticSpaceCreateBase(_CreateBase):
     pass
 
 
-class SemanticSpace[Contents](_DeclaredClass):
+class SemanticSpace[TContents](_DeclaredClass):
     _meta: ClassVar[SemanticSpaceMeta] = SemanticSpaceMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_SemanticSpaceCreateBase]]
 
-    contents: Contents
+    contents: list[TContents]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
