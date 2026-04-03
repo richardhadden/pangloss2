@@ -335,18 +335,18 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 initialise_field_definitions(model)
                 initialise_create_model(model)
             except AttributeError:
-                pass
+                print(model.__name__, "error init create model")
 
         for model in uninitialised_models:
             try:
                 initialise_reference_model(model)
             except AttributeError:
-                pass
+                print(model.__name__, "error initialising reference field")
 
         for model in uninitialised_models:
             try:
                 add_fields_to_create_model(model)
                 model._initialised = True
                 model.model_rebuild(force=True)
-            except AttributeError:
-                pass
+            except AttributeError as e:
+                print(model.__name__, "error add field to model", e)

@@ -1,4 +1,4 @@
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import ConfigDict, Field
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
@@ -19,6 +19,7 @@ class EmbeddedMeta(BaseMeta, DeclaredClassMeta):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _owner_class: type[Embedded] | InheritValue = InheritValue.AS_DEFAULT
     abstract: Annotated[bool, MetaRules.DO_NOT_INHERIT] = False
+    require_label: Literal[False] = False
     field_definitions: ModelFields = Field(default_factory=ModelFields)
 
     @property

@@ -10,6 +10,7 @@ from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.field_definitions import (
+    EmbeddedFieldDefinition,
     ParameterTypeOptions,
     RelationFieldDefinition,
     RelationToDocument,
@@ -23,7 +24,7 @@ from pangloss.model_setup.model_bases.conjunction import (
     _ConjunctionCreateBase,
 )
 from pangloss.model_setup.model_bases.document import Document, _DocumentCreateBase
-from pangloss.model_setup.model_bases.embedded import Embedded
+from pangloss.model_setup.model_bases.embedded import Embedded, _EmbeddedCreateBase
 from pangloss.model_setup.model_bases.entity import Entity, _EntityCreateBase
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
@@ -113,6 +114,7 @@ def can_have_create_model(model: type[_DeclaredClass]) -> bool:
             ReifiedRelationDocument,
             Conjunction,
             SemanticSpace,
+            Embedded,
         ),
     )
 
@@ -140,6 +142,8 @@ def get_create_base_model_type(
         return _ConjunctionCreateBase
     elif issubclass(model, SemanticSpace):
         return _SemanticSpaceCreateBase
+    elif issubclass(model, Embedded):
+        return _EmbeddedCreateBase
     return None
 
 
@@ -373,6 +377,15 @@ def get_relation_annotation_types(
     return Union[*types]  # ty:ignore[invalid-type-form]
 
 
+def get_embedded_annotation_types(
+    field_definition: EmbeddedFieldDefinition,
+) -> UnionType:
+    types = []
+    for type_option in field_definition.type_options:
+        types.append(type_option.annotated_type.Create)
+    return Union[*types]  # type: ignore
+
+
 def add_fields_to_create_model(
     model: type[
         Document
@@ -384,13 +397,23 @@ def add_fields_to_create_model(
         | SemanticSpace
     ],
 ) -> None:
-    print(model)
+
     for field_name, field_definition in model._meta.fields.literal_fields.items():
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
         )
+
+    for field_name, field_definition in model._meta.fields.embedded_fields.items():
+        annotation = get_embedded_annotation_types(field_definition)
+
+        if annotation:
+            model.Create.model_fields[field_name] = FieldInfo(
+                annotation=annotation,  # type: ignore
+                validation_alias=to_camel(field_name),
+                discriminator="type",
+            )
 
     for field_name, field_definition in model._meta.fields.relation_fields.items():
         annotation = get_relation_annotation_types(field_definition)

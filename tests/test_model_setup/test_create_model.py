@@ -1,3 +1,4 @@
+import datetime
 from types import UnionType
 from typing import Annotated, Literal, get_args, get_origin, no_type_check
 from uuid import UUID, uuid7
@@ -12,6 +13,7 @@ from pangloss.model_setup.model_bases.conjunction import (
 )
 from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
+from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import (
@@ -622,6 +624,7 @@ def test_relation_with_conjunction():
     assert isinstance(f2.has_statements.result, Statement.Create)
 
 
+@no_type_check
 def test_relation_to_trait():
     class Agent(Trait):
         pass
@@ -649,3 +652,31 @@ def test_relation_to_trait():
         | Organisation.ReferenceSet
         | Posse.ReferenceSet
     )
+
+    st = Statement(
+        label="A Statement", thing_carried_out_by={"type": "Group", "id": uuid7()}
+    )
+
+
+@no_type_check
+def test_relation_to_embedded():
+    class Date(Embedded):
+        when: datetime.datetime
+
+    class Statement(Document):
+        date: Date
+
+    assert Date.Create.model_fields["when"].annotation is datetime.datetime
+    assert Date.Create.model_fields["type"].annotation == Literal["Date"]
+
+    assert Statement._meta.fields["date"]
+
+    assert Statement.Create.model_fields["date"]
+
+    st = Statement(label="A Statement", date={"type": "Date", "when": "2019-01-01"})
+
+    assert st.label == "A Statement"
+    assert isinstance(st.date, Date.Create)
+    assert st.date.type == "Date"
+    assert isinstance(st.date.when, datetime.datetime)
+    assert st.date.when == datetime.datetime(2019, 1, 1)

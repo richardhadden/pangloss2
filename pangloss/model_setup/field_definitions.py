@@ -238,6 +238,14 @@ class ModelFieldDict[K, V](dict[K, V]):
             if isinstance(field_definition, RelationFieldDefinition)
         }
 
+    @property
+    def embedded_fields(self) -> dict[K, EmbeddedFieldDefinition]:
+        return {
+            field_name: field_definition
+            for field_name, field_definition in self.items()
+            if isinstance(field_definition, EmbeddedFieldDefinition)
+        }
+
 
 @dataclass
 class ModelFields:
