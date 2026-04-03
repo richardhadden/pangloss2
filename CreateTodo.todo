@@ -1,0 +1,6 @@
+Features for _ActionClass.Create
+================================
+
+- Distinction between DBField, APIField
+- Bound values
+?

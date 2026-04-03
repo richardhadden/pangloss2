@@ -323,7 +323,7 @@ def build_generic_create_model_from_type_option(
 
 def get_relation_annotation_types(
     field_definition: RelationFieldDefinition,
-) -> UnionType | type[list[UnionType]] | tuple[list[UnionType]]:
+) -> UnionType | type[list[UnionType]] | tuple[list[UnionType]] | None:
     types = []
     for type_option in field_definition.type_options:
         if isinstance(type_option, RelationToEntity):
@@ -384,7 +384,7 @@ def add_fields_to_create_model(
         | SemanticSpace
     ],
 ) -> None:
-
+    print(model)
     for field_name, field_definition in model._meta.fields.literal_fields.items():
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
@@ -394,12 +394,12 @@ def add_fields_to_create_model(
 
     for field_name, field_definition in model._meta.fields.relation_fields.items():
         annotation = get_relation_annotation_types(field_definition)
-
-        model.Create.model_fields[field_name] = FieldInfo(
-            annotation=annotation,
-            validation_alias=to_camel(field_name),
-            metadata=field_definition.validators,  # type: ignore
-            discriminator="type" if not field_definition.wrapper else None,
-        )
+        if annotation:
+            model.Create.model_fields[field_name] = FieldInfo(
+                annotation=annotation,
+                validation_alias=to_camel(field_name),
+                metadata=field_definition.validators,  # type: ignore
+                discriminator="type" if not field_definition.wrapper else None,
+            )
 
     model.Create.model_rebuild(force=True)

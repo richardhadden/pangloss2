@@ -22,6 +22,7 @@ from pangloss.model_setup.model_bases.semantic_space import (
     SemanticSpace,
     _SemanticSpaceCreateBase,
 )
+from pangloss.model_setup.model_bases.trait import Trait
 
 
 @no_type_check
@@ -619,3 +620,32 @@ def test_relation_with_conjunction():
     assert isinstance(f2.has_statements.cause, Statement.Create)
     assert f2.has_statements.result.type == "Statement"
     assert isinstance(f2.has_statements.result, Statement.Create)
+
+
+def test_relation_to_trait():
+    class Agent(Trait):
+        pass
+
+    class Person(Entity, Agent):
+        pass
+
+    class Group(Entity, Agent):
+        pass
+
+    class Posse(Group):
+        pass
+
+    class Organisation(Entity, Agent):
+        pass
+
+    class Statement(Document):
+        thing_carried_out_by: Agent
+
+    thing_carried_out_by_field = Statement.Create.model_fields["thing_carried_out_by"]
+    assert (
+        thing_carried_out_by_field.annotation
+        == Person.ReferenceSet
+        | Group.ReferenceSet
+        | Organisation.ReferenceSet
+        | Posse.ReferenceSet
+    )

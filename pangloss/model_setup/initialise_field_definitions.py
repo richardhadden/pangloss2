@@ -43,7 +43,7 @@ from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import Fulfils
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
-from pangloss.model_setup.model_bases.trait import NonHeritableTrait
+from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
 from pangloss.model_setup.utils import (
     extract_relation_config,
     flatten,
@@ -221,6 +221,23 @@ def build_relation_options(
                     edge_model=edge_model,
                 )
             )
+
+    if isclass(annotation) and issubclass(annotation, (Trait, NonHeritableTrait)):
+        for concrete_type in get_concrete_types(annotation):
+            if issubclass(concrete_type, Entity):
+                relation_options.append(
+                    RelationToEntity(
+                        annotated_type=concrete_type,
+                        edge_model=edge_model,
+                    )
+                )
+            elif issubclass(concrete_type, Document):
+                relation_options.append(
+                    RelationToDocument(
+                        annotated_type=concrete_type,
+                        edge_model=edge_model,
+                    )
+                )
 
     return set(relation_options)
 

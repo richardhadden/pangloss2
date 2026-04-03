@@ -122,6 +122,18 @@ def get_concrete_types(
         concrete_types.extend(
             generic_get_subclasses(model, include_abstract=include_abstract)
         )
+    elif isclass(model) and issubclass(model, (Trait, NonHeritableTrait)):
+        for direct_trait_instantiations in get_direct_instantiations_of_trait(
+            model, follow_trait_subclasses=True
+        ):
+            if not direct_trait_instantiations._meta.abstract or include_abstract:
+                concrete_types.append(direct_trait_instantiations)
+            if not issubclass(model, NonHeritableTrait):
+                concrete_types.extend(
+                    generic_get_subclasses(
+                        direct_trait_instantiations, include_abstract=include_abstract
+                    )
+                )
     return set(concrete_types)
 
 
@@ -202,7 +214,7 @@ def get_trait_subclasses(
 def get_direct_instantiations_of_trait(
     trait: type[Trait] | type[NonHeritableTrait],
     follow_trait_subclasses: bool = False,
-):
+) -> set[type[Document] | type[Entity]]:
     """Given a Trait class, find the models to which it is *directly* applied,
     i.e. omitting children"""
 

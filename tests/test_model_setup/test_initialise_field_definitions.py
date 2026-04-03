@@ -1703,3 +1703,35 @@ def test_field_required_to_fulfil_subclassed_field_through_parent_fulfilment():
     assert "wpp_person" not in Action._meta.fields
     assert "type" not in Action._meta.fields
     assert "_fulfiling_types" not in Action._meta.fields
+
+
+def test_relation_to_trait():
+    class Agent(Trait):
+        pass
+
+    class Person(Entity, Agent):
+        pass
+
+    class Group(Entity, Agent):
+        pass
+
+    class Organisation(Entity, Agent):
+        pass
+
+    class Statement(Document):
+        thing_carried_out_by: Agent
+
+    assert Statement._meta.fields["thing_carried_out_by"] == RelationFieldDefinition(
+        field_on_model=Statement,
+        field_name="thing_carried_out_by",
+        annotated_type=Agent,
+        field_required_to_fulfil=set(),
+        subclasses_parent_fields=set(),
+        reverse_name="thing_carried_out_by_reverse",
+        wrapper=None,
+        type_options={
+            RelationToEntity(annotated_type=Person, edge_model=None),
+            RelationToEntity(annotated_type=Organisation, edge_model=None),
+            RelationToEntity(annotated_type=Group, edge_model=None),
+        },
+    )
