@@ -635,7 +635,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
     appropriate field definitions, including literal/list/embedded/relation
     field types, while applying subclassing rules and relation config.
     """
-    print("Initialising field definition for", model.__name__)
+
     if issubclass(model, EdgeModel):
         for field_name, field_info in model.model_fields.items():
             if is_relatable(field_info.annotation) or is_list_relatable(
