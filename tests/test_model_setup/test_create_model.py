@@ -7,6 +7,7 @@ import pytest
 from pydantic import AnyHttpUrl, ValidationError
 
 from pangloss.exceptions import PanglossMetaError
+from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.conjunction import (
     Conjunction,
     _ConjunctionCreateBase,
@@ -680,3 +681,16 @@ def test_relation_to_embedded():
     assert st.date.type == "Date"
     assert isinstance(st.date.when, datetime.datetime)
     assert st.date.when == datetime.datetime(2019, 1, 1)
+
+
+@no_type_check
+def test_annotated_value():
+    class WithCertainty[T](AnnotatedValue[T]):
+        certainty: int
+
+    class Naming(Document):
+        name: WithCertainty[str]
+
+    assert WithCertainty[str].model_fields["value"].annotation is str
+
+    assert Naming.Create.model_fields["name"].annotation == WithCertainty[str]

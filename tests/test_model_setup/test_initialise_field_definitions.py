@@ -7,12 +7,14 @@ from annotated_types import MaxLen
 
 from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
+    AnnotatedValueFieldDefinition,
     EmbeddedFieldDefinition,
     EmbeddedOption,
     FieldFulfilment,
     FieldSubclassing,
     ListFieldDefinition,
     LiteralFieldDefinition,
+    LiteralTypeVarFieldDefinition,
     ParameterTypeOptions,
     RelationFieldDefinition,
     RelationToConjunction,
@@ -26,6 +28,7 @@ from pangloss.model_setup.initialise_field_definitions import (
     get_fields_on_model,
     is_single_relatable,
 )
+from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
@@ -1735,3 +1738,26 @@ def test_relation_to_trait():
             RelationToEntity(annotated_type=Group, edge_model=None),
         },
     )
+
+
+def test_annotated_value():
+
+    class WithCertainty[T](AnnotatedValue[T]):
+        certainty: int
+
+    class Naming(Document):
+        name: WithCertainty[str]
+
+    assert WithCertainty._meta.fields["certainty"].annotated_type is int
+    value_field_definition = WithCertainty._meta.fields["value"]
+    assert value_field_definition
+    assert isinstance(value_field_definition, LiteralTypeVarFieldDefinition)
+    assert (
+        value_field_definition.annotated_type
+        == WithCertainty.__pydantic_generic_metadata__["parameters"][0]
+    )
+    assert value_field_definition.field_name == "value"
+    assert value_field_definition.field_on_model is WithCertainty
+    assert value_field_definition.type_var_name == "T"
+
+    assert isinstance(Naming._meta.fields["name"], AnnotatedValueFieldDefinition)

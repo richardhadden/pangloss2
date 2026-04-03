@@ -16,6 +16,7 @@ from pangloss.exceptions import (
 )
 from pangloss.model_setup.initialise_action_classes.initialise_create_model import (
     add_fields_to_create_model,
+    can_have_create_model,
     initialise_create_model,
 )
 from pangloss.model_setup.initialise_action_classes.initialise_reference_model import (
@@ -333,7 +334,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         for model in uninitialised_models:
             try:
                 initialise_field_definitions(model)
-                initialise_create_model(model)
+                if can_have_create_model(model):
+                    initialise_create_model(model)
             except AttributeError:
                 print(model.__name__, "error init create model")
 
@@ -345,8 +347,9 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
         for model in uninitialised_models:
             try:
-                add_fields_to_create_model(model)
+                if can_have_create_model(model):
+                    add_fields_to_create_model(model)
                 model._initialised = True
                 model.model_rebuild(force=True)
-            except AttributeError as e:
-                print(model.__name__, "error add field to model", e)
+            except (AttributeError, TypeError) as e:
+                print(model.__name__, "error add field to model create", e)

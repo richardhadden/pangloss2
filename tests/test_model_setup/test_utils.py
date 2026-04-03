@@ -5,6 +5,7 @@ from annotated_types import MaxLen
 from pydantic import BaseModel
 from pydantic_meta_kit import WithMeta
 
+from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.base_object import _BaseObject, _DeclaredClass
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import Conjunction
@@ -278,6 +279,7 @@ def test_usable_declared_classes():
             BaseModel,
             object,
             Generic,
+            AnnotatedValue,
         ]
     )
 

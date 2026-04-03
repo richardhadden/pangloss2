@@ -11,6 +11,7 @@ from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.base_types import BaseTypes
 
 if TYPE_CHECKING:
+    from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
     from pangloss.model_setup.model_bases.conjunction import Conjunction
     from pangloss.model_setup.model_bases.document import Document
     from pangloss.model_setup.model_bases.edge_model import EdgeModel
@@ -36,7 +37,7 @@ class FieldFulfilment:
 class FieldDefinition:
     field_on_model: type[_DeclaredClass]
     field_name: str
-    annotated_type: type[_DeclaredClass | BaseTypes | list]
+    annotated_type: type[_DeclaredClass | BaseTypes | list] | TypeVar
     field_required_to_fulfil: set[FieldFulfilment] = dataclass_field(
         default_factory=set
     )
@@ -67,10 +68,21 @@ class ListFieldDefinition(FieldDefinition):
     inner_type_validators: list[BaseMetadata] = dataclass_field(default_factory=list)
 
 
+@dataclass(frozen=True, kw_only=True)
+class AnnotatedValueFieldDefinition(FieldDefinition):
+    annotated_type: type[AnnotatedValue]
+
+
 type TRelationFieldDefinitionAnnotation = (
     type[_DeclaredClass | BaseTypes | list]
     | type[list[type[_DeclaredClass | BaseTypes | list]]]
 )
+
+
+@dataclass(frozen=True, kw_only=True)
+class LiteralTypeVarFieldDefinition(FieldDefinition):
+    annotated_type: TypeVar
+    type_var_name: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -244,6 +256,14 @@ class ModelFieldDict[K, V](dict[K, V]):
             field_name: field_definition
             for field_name, field_definition in self.items()
             if isinstance(field_definition, EmbeddedFieldDefinition)
+        }
+
+    @property
+    def annotated_value_fields(self) -> dict[K, AnnotatedValueFieldDefinition]:
+        return {
+            field_name: field_definition
+            for field_name, field_definition in self.items()
+            if isinstance(field_definition, AnnotatedValueFieldDefinition)
         }
 
 

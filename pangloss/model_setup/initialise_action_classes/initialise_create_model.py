@@ -425,4 +425,13 @@ def add_fields_to_create_model(
                 discriminator="type" if not field_definition.wrapper else None,
             )
 
+    for (
+        field_name,
+        field_definition,
+    ) in model._meta.fields.annotated_value_fields.items():
+        print(model.__name__, field_name)
+        model.Create.model_fields[field_name] = FieldInfo(
+            annotation=field_definition.annotated_type
+        )
+
     model.Create.model_rebuild(force=True)

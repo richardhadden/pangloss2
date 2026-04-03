@@ -16,6 +16,7 @@ from pydantic.fields import FieldInfo
 
 from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.field_definitions import (
+    AnnotatedValueFieldDefinition,
     EmbeddedFieldDefinition,
     EmbeddedOption,
     FieldDefinition,
@@ -23,6 +24,7 @@ from pangloss.model_setup.field_definitions import (
     FieldSubclassing,
     ListFieldDefinition,
     LiteralFieldDefinition,
+    LiteralTypeVarFieldDefinition,
     ParameterTypeOptions,
     RelationFieldDefinition,
     RelationOption,
@@ -34,6 +36,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToTypeVar,
     TRelationFieldDefinitionAnnotation,
 )
+from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import Conjunction
 from pangloss.model_setup.model_bases.document import Document
@@ -632,7 +635,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
     appropriate field definitions, including literal/list/embedded/relation
     field types, while applying subclassing rules and relation config.
     """
-
+    print("Initialising field definition for", model.__name__)
     if issubclass(model, EdgeModel):
         for field_name, field_info in model.model_fields.items():
             if is_relatable(field_info.annotation) or is_list_relatable(
@@ -641,8 +644,27 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 raise PanglossModelError(
                     f"EdgeModel {model.__name__} does not support relations ({model.__name__}.{field_name})"
                 )
+    if issubclass(model, AnnotatedValue):
+        for field_name, field_info in model.model_fields.items():
+            if is_relatable(field_info.annotation) or is_list_relatable(
+                field_info.annotation
+            ):
+                raise PanglossModelError(
+                    f"AnnotatedValue {model.__name__} does not support relations ({model.__name__}.{field_name})"
+                )
 
     for field_name, field_info, field_fulfilment in get_fields_on_model(model):
+        if issubclass(model, AnnotatedValue) and field_name == "value":
+            model._meta.field_definitions.add_field(
+                name=field_name,
+                field_definition=LiteralTypeVarFieldDefinition(
+                    field_name=field_name,
+                    field_on_model=model,
+                    annotated_type=cast(TypeVar, field_info.annotation),
+                    type_var_name=str(field_info.annotation),
+                ),
+            )
+
         if (
             issubclass(model, SemanticSpace)
             and model is not SemanticSpace
@@ -686,6 +708,19 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 field_definition=build_embedded_field_definition(
                     field_name, field_info, model
                 ),
+            )
+        elif isclass(field_info.annotation) and issubclass(
+            field_info.annotation, AnnotatedValue
+        ):
+            field_definition = AnnotatedValueFieldDefinition(
+                field_on_model=model,
+                field_name=field_name,
+                annotated_type=field_info.annotation,
+            )
+
+            model._meta.field_definitions.add_field(
+                name=field_name,
+                field_definition=field_definition,
             )
 
         elif is_relatable(field_info.annotation) or is_list_relatable(
