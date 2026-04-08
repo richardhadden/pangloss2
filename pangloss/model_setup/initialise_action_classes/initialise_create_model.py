@@ -399,6 +399,8 @@ def add_fields_to_create_model(
 ) -> None:
 
     for field_name, field_definition in model._meta.fields.literal_fields.items():
+        if field_definition.db_field:
+            continue
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
             validation_alias=to_camel(field_name),
@@ -406,6 +408,9 @@ def add_fields_to_create_model(
         )
 
     for field_name, field_definition in model._meta.fields.embedded_fields.items():
+        if field_definition.db_field:
+            continue
+
         annotation = get_embedded_annotation_types(field_definition)
 
         if annotation:
@@ -416,6 +421,9 @@ def add_fields_to_create_model(
             )
 
     for field_name, field_definition in model._meta.fields.relation_fields.items():
+        if field_definition.db_field:
+            continue
+
         annotation = get_relation_annotation_types(field_definition)
         if annotation:
             model.Create.model_fields[field_name] = FieldInfo(
@@ -429,6 +437,9 @@ def add_fields_to_create_model(
         field_name,
         field_definition,
     ) in model._meta.fields.annotated_value_fields.items():
+        if field_definition.db_field:
+            continue
+
         model.Create.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
         )

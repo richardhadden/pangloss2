@@ -1766,8 +1766,21 @@ def test_annotated_value():
 def test_db_field():
     class Statement(Document):
         some_field: int
-        some_prepared_field: Annotated[int, DBField]
+        db_int_field: Annotated[int, DBField]
+        person_field: Person
+        db_person_field: Annotated[Person, DBField]
+        db_embedded_field: Annotated[Date, DBField]
+
+    class Person(Entity):
+        pass
+
+    class Date(Embedded):
+        pass
 
     assert Statement._meta.fields["some_field"].annotated_type is int
     assert Statement._meta.fields["some_field"].db_field is False
-    assert Statement._meta.fields["some_prepared_field"].db_field is True
+    assert Statement._meta.fields["db_int_field"].db_field is True
+
+    assert Statement._meta.fields["person_field"].db_field is False
+    assert Statement._meta.fields["db_person_field"].db_field is True
+    assert Statement._meta.fields["db_embedded_field"].db_field is True

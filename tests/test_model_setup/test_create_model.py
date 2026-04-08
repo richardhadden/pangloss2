@@ -16,7 +16,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
-from pangloss.model_setup.model_bases.helpers import ViaEdge
+from pangloss.model_setup.model_bases.helpers import DBField, ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     _ReifiedRelationCreateBase,
@@ -694,3 +694,28 @@ def test_annotated_value():
     assert WithCertainty[str].model_fields["value"].annotation is str
 
     assert Naming.Create.model_fields["name"].annotation == WithCertainty[str]
+
+
+@no_type_check
+def test_db_field_not_in_create_model():
+
+    class Statement(Document):
+        some_field: int
+        db_int_field: Annotated[int, DBField]
+        person_field: Person
+        db_person_field: Annotated[Person, DBField]
+        embedded_field: Date
+        db_embedded_field: Annotated[Date, DBField]
+
+    class Person(Entity):
+        pass
+
+    class Date(Embedded):
+        pass
+
+    assert "some_field" in Statement.Create.model_fields
+    assert "db_int_field" not in Statement.Create.model_fields
+    assert "person_field" in Statement.Create.model_fields
+    assert "db_person_field" not in Statement.Create.model_fields
+    assert "embedded_field" in Statement.Create.model_fields
+    assert "db_embedded_field" not in Statement.Create.model_fields
