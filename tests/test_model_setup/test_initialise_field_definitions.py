@@ -35,7 +35,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
 from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
-from pangloss.model_setup.model_bases.helpers import Fulfils, ViaEdge
+from pangloss.model_setup.model_bases.helpers import DBField, Fulfils, ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
@@ -1761,3 +1761,13 @@ def test_annotated_value():
     assert value_field_definition.type_var_name == "T"
 
     assert isinstance(Naming._meta.fields["name"], AnnotatedValueFieldDefinition)
+
+
+def test_db_field():
+    class Statement(Document):
+        some_field: int
+        some_prepared_field: Annotated[int, DBField]
+
+    assert Statement._meta.fields["some_field"].annotated_type is int
+    assert Statement._meta.fields["some_field"].db_field is False
+    assert Statement._meta.fields["some_prepared_field"].db_field is True

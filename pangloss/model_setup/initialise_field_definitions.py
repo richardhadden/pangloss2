@@ -43,7 +43,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
-from pangloss.model_setup.model_bases.helpers import Fulfils
+from pangloss.model_setup.model_bases.helpers import DBField, Fulfils
 from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
@@ -69,7 +69,10 @@ from pangloss.model_setup.utils import (
 
 
 def build_list_field_definition(
-    field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
+    field_name: str,
+    field_info: FieldInfo,
+    model: type[_DeclaredClass],
+    is_db_field: bool = False,
 ) -> ListFieldDefinition:
     """Build a list field definition for a literal typed list.
 
@@ -104,6 +107,7 @@ def build_list_field_definition(
             validators=field_info.metadata,
             inner_type=list_inner_type,
             inner_type_validators=inner_type_validators,
+            db_field=is_db_field,
         )
     except AssertionError:
         raise PanglossModelError(
@@ -246,7 +250,10 @@ def build_relation_options(
 
 
 def build_relatable_field_definition(
-    field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
+    field_name: str,
+    field_info: FieldInfo,
+    model: type[_DeclaredClass],
+    is_db_field: bool = False,
 ) -> RelationFieldDefinition:
     """Build a RelationFieldDefinition from model field metadata.
 
@@ -287,6 +294,7 @@ def build_relatable_field_definition(
             subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=list,
+            db_field=is_db_field,
         )
     elif isinstance(field_info.annotation, TypeVar):
         return RelationFieldDefinition(
@@ -304,6 +312,7 @@ def build_relatable_field_definition(
             subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=None,
+            db_field=is_db_field,
         )
 
     elif is_list_relatable(field_info.annotation):
@@ -328,6 +337,7 @@ def build_relatable_field_definition(
             subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=list,
+            db_field=is_db_field,
         )
 
     else:
@@ -351,11 +361,15 @@ def build_relatable_field_definition(
             subclasses_parent_fields=field_subclassings,
             reverse_name=reverse_name,
             wrapper=None,
+            db_field=is_db_field,
         )
 
 
 def build_embedded_field_definition(
-    field_name: str, field_info: FieldInfo, model: type[_DeclaredClass]
+    field_name: str,
+    field_info: FieldInfo,
+    model: type[_DeclaredClass],
+    is_db_field: bool = False,
 ) -> EmbeddedFieldDefinition:
     """Construct an embedded field definition for Embedded or union embedded.
 
@@ -381,6 +395,7 @@ def build_embedded_field_definition(
         type_options=set(
             EmbeddedOption(annotated_type=option) for option in field_options
         ),
+        db_field=is_db_field,
     )
 
 
@@ -654,6 +669,11 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 )
 
     for field_name, field_info, field_fulfilment in get_fields_on_model(model):
+        is_db_field = any(
+            isclass(md) and issubclass(md, DBField) or isinstance(md, DBField)
+            for md in field_info.metadata
+        )
+
         if issubclass(model, AnnotatedValue) and field_name == "value":
             model._meta.field_definitions.add_field(
                 name=field_name,
@@ -662,6 +682,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                     field_on_model=model,
                     annotated_type=cast(TypeVar, field_info.annotation),
                     type_var_name=str(field_info.annotation),
+                    db_field=is_db_field,
                 ),
             )
 
@@ -670,11 +691,13 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             and model is not SemanticSpace
             and model.__pydantic_generic_metadata__["origin"] is None
         ):
+            field_definition = build_relatable_field_definition(
+                field_name, field_info, model, is_db_field=is_db_field
+            )
+
             model._meta.field_definitions.add_field(
                 name=field_name,
-                field_definition=build_relatable_field_definition(
-                    field_name, field_info, model
-                ),
+                field_definition=field_definition,
             )
 
         if (
@@ -682,32 +705,35 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             and model is not Conjunction
             and model.__pydantic_generic_metadata__["origin"] is None
         ):
+            field_definition = build_relatable_field_definition(
+                field_name, field_info, model, is_db_field=is_db_field
+            )
             model._meta.field_definitions.add_field(
                 name=field_name,
-                field_definition=build_relatable_field_definition(
-                    field_name, field_info, model
-                ),
+                field_definition=field_definition,
             )
 
         if issubclass(model, ReifiedRelation):
             if get_origin(field_info.annotation) and isinstance(
                 get_args(field_info.annotation)[0], TypeVar
             ):
+                field_definition = build_relatable_field_definition(
+                    field_name, field_info, model, is_db_field=is_db_field
+                )
                 model._meta.field_definitions.add_field(
                     name=field_name,
-                    field_definition=build_relatable_field_definition(
-                        field_name, field_info, model
-                    ),
+                    field_definition=field_definition,
                 )
 
         if is_embedded(field_info.annotation) or is_union_of_embedded(
             field_info.annotation
         ):
+            field_definition = build_embedded_field_definition(
+                field_name, field_info, model, is_db_field=is_db_field
+            )
             model._meta.field_definitions.add_field(
                 name=field_name,
-                field_definition=build_embedded_field_definition(
-                    field_name, field_info, model
-                ),
+                field_definition=field_definition,
             )
         elif isclass(field_info.annotation) and issubclass(
             field_info.annotation, AnnotatedValue
@@ -716,6 +742,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 field_on_model=model,
                 field_name=field_name,
                 annotated_type=field_info.annotation,
+                db_field=is_db_field,
             )
 
             model._meta.field_definitions.add_field(
@@ -727,9 +754,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             field_info.annotation
         ):
             field_definition = build_relatable_field_definition(
-                field_name,
-                field_info,
-                model,
+                field_name, field_info, model, is_db_field=is_db_field
             )
             if field_fulfilment:
                 field_definition.field_required_to_fulfil.update(field_fulfilment)
@@ -742,22 +767,25 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
             )
 
         elif is_list_of_literal(field_info.annotation):
+            field_definition = build_list_field_definition(
+                field_name, field_info, model, is_db_field=is_db_field
+            )
             model._meta.field_definitions.add_field(
                 name=field_name,
-                field_definition=build_list_field_definition(
-                    field_name, field_info, model
-                ),
+                field_definition=field_definition,
             )
 
         elif is_literal(field_info.annotation):
+            field_definition = LiteralFieldDefinition(
+                field_on_model=model,
+                field_name=field_name,
+                annotated_type=field_info.annotation,
+                validators=[
+                    md for md in field_info.metadata if isinstance(md, BaseMetadata)
+                ],
+                db_field=is_db_field,
+            )
             model._meta.field_definitions.add_field(
-                field_name,
-                LiteralFieldDefinition(
-                    field_on_model=model,
-                    field_name=field_name,
-                    annotated_type=field_info.annotation,
-                    validators=[
-                        md for md in field_info.metadata if isinstance(md, BaseMetadata)
-                    ],
-                ),
+                name=field_name,
+                field_definition=field_definition,
             )

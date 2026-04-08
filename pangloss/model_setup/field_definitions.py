@@ -41,6 +41,7 @@ class FieldDefinition:
     field_required_to_fulfil: set[FieldFulfilment] = dataclass_field(
         default_factory=set
     )
+    db_field: bool = False
 
     @property
     def model_field(self) -> FieldInfo:

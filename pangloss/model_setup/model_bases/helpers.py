@@ -29,3 +29,7 @@ class ViaEdge[Target, Model: EdgeModel](BaseModel):
 
 class AnnotatedLiteral[LiteralType](BaseModel):
     value: LiteralType
+
+
+class DBField:
+    pass
