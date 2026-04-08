@@ -11,6 +11,7 @@ from pangloss.model_setup.field_definitions import (
 )
 from pangloss.model_setup.model_bases.base_object import (
     _CreateBase,
+    _CreateDBBase,
     _DeclaredClass,
     _ReferenceSetBase,
 )
@@ -50,6 +51,10 @@ class _EntityCreateBase(_CreateBase):
     pass
 
 
+class _EntityCreateDBBase(_CreateDBBase):
+    pass
+
+
 class _EntityReferenceSetBase(_ReferenceSetBase):
     pass
 
@@ -59,6 +64,7 @@ class Entity(_DeclaredClass, WithMeta[EntityMeta]):
     _meta: ClassVar[EntityMeta] = EntityMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_EntityCreateBase]]
+    CreateDB: ClassVar[type[_EntityCreateDBBase]]
     ReferenceSet: ClassVar[type[_EntityReferenceSetBase]]
 
     @classmethod

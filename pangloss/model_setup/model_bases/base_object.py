@@ -106,6 +106,10 @@ class _CreateBase(_ActionClass):
     pass
 
 
+class _CreateDBBase(_CreateBase):
+    pass
+
+
 class _ViewBase(_ActionClass):
     id: UUID
 

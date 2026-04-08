@@ -11,6 +11,7 @@ from pangloss.model_setup.field_definitions import (
 from pangloss.model_setup.model_bases.base_object import (
     DeclaredClassMeta,
     _CreateBase,
+    _CreateDBBase,
     _DeclaredClass,
     _ReferenceSetBase,
     _ReferenceViewBase,
@@ -43,6 +44,10 @@ class _DocumentCreateBase(_CreateBase):
     pass
 
 
+class _DocumentCreateDBBase(_CreateDBBase):
+    pass
+
+
 class DocumentViewBase(_ViewBase):
     pass  # in_semantic_space: list[str] = Field(default_factory=list)
 
@@ -68,6 +73,7 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
     _meta: ClassVar[DocumentMeta] = DocumentMeta(create_with_id=False)  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_DocumentCreateBase]]
+    CreateDB: ClassVar[type[_DocumentCreateDBBase]]
     View: ClassVar[type[DocumentViewBase]]
     Update: ClassVar[type[DocumentUpdateBase]]
 

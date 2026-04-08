@@ -8,7 +8,11 @@ from pangloss.model_setup.field_definitions import (
     ModelFieldDict,
     ModelFields,
 )
-from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
+from pangloss.model_setup.model_bases.base_object import (
+    _CreateBase,
+    _CreateDBBase,
+    _DeclaredClass,
+)
 
 
 class ReifiedRelationMeta(BaseModel):
@@ -27,12 +31,17 @@ class _ReifiedRelationCreateBase(_CreateBase):
     pass
 
 
+class _ReifiedRelationCreateDBBase(_CreateDBBase):
+    pass
+
+
 class ReifiedRelation[TTarget](_DeclaredClass):
     Meta: ClassVar[type[ReifiedRelationMeta]] = ReifiedRelationMeta
     model_config = ConfigDict(validate_assignment=True)
     _meta: ClassVar[ReifiedRelationMeta] = ReifiedRelationMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_ReifiedRelationCreateBase]]
+    CreateDB: ClassVar[type[_ReifiedRelationCreateDBBase]]
 
     target: list[TTarget]
 
@@ -60,8 +69,13 @@ class _ReifiedRelationDocumentCreateBase(_CreateBase):
     pass
 
 
+class _ReifiedRelationDocumentCreateDBBase(_CreateDBBase):
+    pass
+
+
 class ReifiedRelationDocument[Target](_DeclaredClass):
     Create: ClassVar[type[_ReifiedRelationDocumentCreateBase]]
+    CreateDB: ClassVar[type[_ReifiedRelationCreateDBBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:

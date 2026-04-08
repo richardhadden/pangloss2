@@ -8,7 +8,11 @@ from pangloss.model_setup.field_definitions import (
     ModelFieldDict,
     ModelFields,
 )
-from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
+from pangloss.model_setup.model_bases.base_object import (
+    _CreateBase,
+    _CreateDBBase,
+    _DeclaredClass,
+)
 
 
 class SemanticSpaceMeta(BaseMeta):
@@ -27,10 +31,15 @@ class _SemanticSpaceCreateBase(_CreateBase):
     pass
 
 
+class _SemanticSpaceCreateDBBase(_CreateDBBase):
+    pass
+
+
 class SemanticSpace[TContents](_DeclaredClass):
     _meta: ClassVar[SemanticSpaceMeta] = SemanticSpaceMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_SemanticSpaceCreateBase]]
+    CreateDB: ClassVar[type[_SemanticSpaceCreateDBBase]]
 
     contents: list[TContents]
 

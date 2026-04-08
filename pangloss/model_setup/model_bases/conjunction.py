@@ -8,7 +8,11 @@ from pangloss.model_setup.field_definitions import (
     ModelFieldDict,
     ModelFields,
 )
-from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
+from pangloss.model_setup.model_bases.base_object import (
+    _CreateBase,
+    _CreateDBBase,
+    _DeclaredClass,
+)
 
 
 class ConjunctionMeta(BaseMeta):
@@ -27,10 +31,15 @@ class _ConjunctionCreateBase(_CreateBase):
     pass
 
 
+class _ConjunctionCreateDBBase(_CreateDBBase):
+    pass
+
+
 class Conjunction(_DeclaredClass, WithMeta[ConjunctionMeta]):
     _meta: ClassVar[ConjunctionMeta] = ConjunctionMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_ConjunctionCreateBase]]
+    DBCreate: ClassVar[type[_ConjunctionCreateDBBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
