@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from functools import cache
 from typing import TYPE_CHECKING, Any, ClassVar, Self
@@ -103,24 +104,28 @@ class _ReferenceSetBase(_ActionClass):
 
 
 class _CreateBase(_ActionClass):
-    def to_db_model(self):
-        if hasattr(self._owner, "to_db_create"):
-            return self._owner.to_db_create(self)  # type: ignore
-
-        if hasattr(self._owner, "to_db"):
-            return self._owner.to_db(self)  # type: ignore
-
+    def _to_db_model(self):
         return self._owner.CreateDB(**self.model_dump())  # type: ignore
 
 
-class _CreateDBBase(_CreateBase):
-    def __init__(self, incoming_data: _CreateBase | None = None, **db_fields):
-        print(incoming_data, db_fields)
-        if incoming_data:
-            super().__init__(**incoming_data.model_dump(), **db_fields)
-        else:
-            print(">>", db_fields)
-            super().__init__(**db_fields)
+class _CreateDBBase(_ActionClass):
+    def __init__(self, **kwargs):
+
+        # Calling model_construct emits a warning that the data might not be valid,
+        # so catch these and supress. This is fine as we later pass the data back to
+        # the class.__init__, which will validate it
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if f := getattr(
+                self._owner, "to_db_create", getattr(self._owner, "to_db", None)
+            ):
+                data = f(self.__class__.model_construct(**kwargs))
+                if isinstance(data, dict):
+                    super().__init__(**data)
+                else:
+                    super().__init__(**data.model_dump())
+            else:
+                super().__init__(**kwargs)
 
 
 class _ViewBase(_ActionClass):

@@ -787,7 +787,7 @@ def test_can_convert_create_to_create_db_model():
         action_carried_out={"type": "Action", "label": "An Action"},
     )
 
-    st_db = st.to_db_model()
+    st_db = st._to_db_model()
 
     assert isinstance(st_db, Statement.CreateDB)
     assert st_db.label == "A Statement Label"
@@ -805,18 +805,15 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
         name: str
         carried_out_by: Person
         action_carried_out: Annotated[Action, DBField]
-        # something_else: SomethingElse
+        something_else: SomethingElse
 
         @staticmethod
-        def to_db_create(incoming_data):
-            action = {
-                "type": "Action",
-                "label": incoming_data.name + " action",
-            }
-            return Statement.CreateDB(
-                incoming_data,  # type: ignore
-                action_carried_out=action,  # type: ignore
+        def to_db(incoming_data):
+
+            incoming_data.action_carried_out = Action(
+                label=incoming_data.name + " action",  # type: ignore
             )
+            return incoming_data
 
     class Person(Entity):
         pass
@@ -825,18 +822,24 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
         pass
 
     class SomethingElse(Document):
-        pass
+        name: Annotated[str, DBField]
 
-    class Other(Document):
-        pass
+        @staticmethod
+        def to_db_create(incoming_data):
+            name = "something else name"
+
+            return {**incoming_data.model_dump(), "name": name}
 
     st = Statement(
         label="A Statement Label",
         name="A Statement",
         carried_out_by={"type": "Person", "id": uuid7()},
+        something_else={"type": "SomethingElse", "label": "somethingelse"},
     )
 
-    st_db = st.to_db_model()
+    assert Statement.CreateDB.model_fields["type"].annotation == Literal["Statement"]
+
+    st_db = st._to_db_model()
 
     assert isinstance(st_db, Statement.CreateDB)
     assert st_db.label == "A Statement Label"
@@ -847,3 +850,6 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
     assert isinstance(st_db.action_carried_out, Action.CreateDB)
     assert st_db.action_carried_out.type == "Action"
     assert st_db.action_carried_out.label == "A Statement action"
+
+    assert isinstance(st_db.something_else, SomethingElse.CreateDB)
+    assert st_db.something_else.name == "something else name"
