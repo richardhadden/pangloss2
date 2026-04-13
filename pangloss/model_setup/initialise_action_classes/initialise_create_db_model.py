@@ -21,20 +21,20 @@ from pangloss.model_setup.field_definitions import (
 from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import (
     Conjunction,
-    _ConjunctionCreateBase,
+    _ConjunctionCreateDBBase,
 )
-from pangloss.model_setup.model_bases.document import Document, _DocumentCreateBase
-from pangloss.model_setup.model_bases.embedded import Embedded, _EmbeddedCreateBase
-from pangloss.model_setup.model_bases.entity import Entity, _EntityCreateBase
+from pangloss.model_setup.model_bases.document import Document, _DocumentCreateDBBase
+from pangloss.model_setup.model_bases.embedded import Embedded, _EmbeddedCreateDBBase
+from pangloss.model_setup.model_bases.entity import Entity, _EntityCreateDBBase
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     ReifiedRelationDocument,
-    _ReifiedRelationCreateBase,
-    _ReifiedRelationDocumentCreateBase,
+    _ReifiedRelationCreateDBBase,
+    _ReifiedRelationDocumentCreateDBBase,
 )
 from pangloss.model_setup.model_bases.semantic_space import (
     SemanticSpace,
-    _SemanticSpaceCreateBase,
+    _SemanticSpaceCreateDBBase,
 )
 
 
@@ -62,21 +62,23 @@ def get_model_validators(model):
     return validators
 
 
-def build_id_field_on_create_model(model) -> None:
-    assert model.Create
+def build_id_field_on_create_db_model(model) -> None:
+    assert model.CreateDB
     if getattr(model._meta, "create_with_id", False):
         annotation = UUID | None
         if getattr(model._meta, "accept_url_as_id", False):
             annotation = UUID | AnyHttpUrl | None
-        model.Create.model_fields["id"] = FieldInfo(annotation=annotation, default=None)
-        model.Create.model_fields["create_new"] = FieldInfo(
+        model.CreateDB.model_fields["id"] = FieldInfo(
+            annotation=annotation, default=None
+        )
+        model.CreateDB.model_fields["create_new"] = FieldInfo(
             annotation=Literal[True] | None,  # pyright: ignore[reportArgumentType]
             default=None,  # pyright: ignore[reportArgumentType]
         )
-        model.Create.model_rebuild()
+        model.CreateDB.model_rebuild()
 
 
-def build_label_field_on_create_model(
+def build_label_field_on_create_db_model(
     model: type[
         Document
         | Embedded
@@ -87,10 +89,10 @@ def build_label_field_on_create_model(
         | SemanticSpace
     ],
 ):
-    assert model.Create
+    assert model.CreateDB
 
     if getattr(model._meta, "require_label", True):
-        model.Create.model_fields["label"] = FieldInfo(annotation=str)
+        model.CreateDB.model_fields["label"] = FieldInfo(annotation=str)
 
 
 def unpack_generic_fields(
@@ -104,7 +106,7 @@ def unpack_generic_fields(
     return generic_fields
 
 
-def can_have_create_model(model: type[_DeclaredClass]) -> bool:
+def can_have_create_db_model(model: type[_DeclaredClass]) -> bool:
     return issubclass(
         model,
         (
@@ -119,7 +121,7 @@ def can_have_create_model(model: type[_DeclaredClass]) -> bool:
     )
 
 
-def get_create_base_model_type(
+def get_create_db_base_model_type(
     model: type[
         Document
         | Embedded
@@ -131,23 +133,23 @@ def get_create_base_model_type(
     ],
 ) -> type[_CreateBase] | None:
     if issubclass(model, Document):
-        return _DocumentCreateBase
+        return _DocumentCreateDBBase
     elif issubclass(model, Entity):
-        return _EntityCreateBase
+        return _EntityCreateDBBase
     elif issubclass(model, ReifiedRelation):
-        return _ReifiedRelationCreateBase
+        return _ReifiedRelationCreateDBBase
     elif issubclass(model, ReifiedRelationDocument):
-        return _ReifiedRelationDocumentCreateBase
+        return _ReifiedRelationDocumentCreateDBBase
     elif issubclass(model, Conjunction):
-        return _ConjunctionCreateBase
+        return _ConjunctionCreateDBBase
     elif issubclass(model, SemanticSpace):
-        return _SemanticSpaceCreateBase
+        return _SemanticSpaceCreateDBBase
     elif issubclass(model, Embedded):
-        return _EmbeddedCreateBase
+        return _EmbeddedCreateDBBase
     return None
 
 
-def initialise_create_model(
+def initialise_create_db_model(
     model: type[
         Document
         | Embedded
@@ -159,22 +161,22 @@ def initialise_create_model(
     ],
 ) -> None:
 
-    if not can_have_create_model(model):
+    if not can_have_create_db_model(model):
         return
 
     # Checks if Create model has already been created; do not duplicate as we depend
     # on model reference!
-    if "Create" in model.__dict__:
+    if "CreateDB" in model.__dict__:
         return
 
-    # Extracts from the _DeclaredClass definition the annotation for .Create
-    create_base_type = get_create_base_model_type(model)
-    if not create_base_type:
+    # Extracts from the _DeclaredClass definition the annotation for .CreateDB
+    create_db_base_type = get_create_db_base_model_type(model)
+    if not create_db_base_type:
         return
 
-    model.Create = pydantic_create_model(  # ty:ignore[invalid-assignment]
-        f"{model.__name__}Create",
-        __base__=create_base_type,
+    model.CreateDB = pydantic_create_model(  # ty:ignore[invalid-assignment]
+        f"{model.__name__}CreateDB",
+        __base__=create_db_base_type,
         __validators__=get_model_validators(model),
         __module__=model.__module__,
         _owner=(ClassVar[model], model),
@@ -182,10 +184,10 @@ def initialise_create_model(
         type=(Literal[model.__name__], model.__name__),  # type: ignore
     )  # pyright: ignore[reportAttributeAccessIssue]
 
-    build_id_field_on_create_model(model)
-    build_label_field_on_create_model(model)
+    build_id_field_on_create_db_model(model)
+    build_label_field_on_create_db_model(model)
 
-    model.Create.model_rebuild(force=True)
+    model.CreateDB.model_rebuild(force=True)
 
 
 def recursively_get_generic_naming(
@@ -204,32 +206,32 @@ def recursively_get_generic_naming(
 
 
 @cache
-def build_generic_create_model_from_type_option(
+def build_generic_create_db_model_from_type_option(
     type_option: RelationToGeneric,
 ):
-    """Taking a type option, build a Model.Create for each type option with the type options
+    """Taking a type option, build a Model.CreateDB for each type option with the type options
     bound to the appropriate fields"""
 
     # Get the generic base type
     generic_relation_type = type_option.base_type
 
     # Assure that Create is initalised on this model
-    initialise_create_model(generic_relation_type)
+    initialise_create_db_model(generic_relation_type)
 
     # Add the non-TypeVar fields to the base model
-    add_fields_to_create_model(generic_relation_type)
+    add_fields_to_create_db_model(generic_relation_type)
 
     # Rebuild
-    generic_relation_type.Create.model_rebuild(force=True)
+    generic_relation_type.CreateDB.model_rebuild(force=True)
 
     # We need to name our class with the bound fields, in the form Generic[type_names],
     # so extract the type names (recursing down)
     type_names = recursively_get_generic_naming(type_option.parameter_type_options)
 
     # Create a bound model
-    bound_create_model = pydantic_create_model(
-        f"{generic_relation_type.__name__}[{type_names}]Create",
-        __base__=generic_relation_type.Create,
+    bound_create_db_model = pydantic_create_model(
+        f"{generic_relation_type.__name__}[{type_names}]CreateDB",
+        __base__=generic_relation_type.CreateDB,
         __validators__=get_model_validators(generic_relation_type),
         __module__=generic_relation_type.__module__,
         _owner=(ClassVar[generic_relation_type], generic_relation_type),
@@ -239,8 +241,8 @@ def build_generic_create_model_from_type_option(
 
     # For some reason, we need to manually add all the fields from the Generic unbound type
     # (you would have thought inheriting as __base__ above would have done this, but no)
-    for field_name, field_info in generic_relation_type.Create.model_fields.items():
-        bound_create_model.model_fields[field_name] = field_info
+    for field_name, field_info in generic_relation_type.CreateDB.model_fields.items():
+        bound_create_db_model.model_fields[field_name] = field_info
 
     # Now, go through all the relation fields on the Generic type
     for (
@@ -271,7 +273,7 @@ def build_generic_create_model_from_type_option(
                             )
                             if to.annotated_type._meta.create_inline:
                                 annotations.append(
-                                    to.annotated_type.Create.apply_edge_model(
+                                    to.annotated_type.CreateDB.apply_edge_model(
                                         to.edge_model
                                     )
                                 )
@@ -279,18 +281,20 @@ def build_generic_create_model_from_type_option(
                             # ... otherwise, just add the annotated_type.ReferenceSet
                             annotations.append(to.annotated_type.ReferenceSet)
                             if to.annotated_type._meta.create_inline:
-                                annotations.append(to.annotated_type.Create)
+                                annotations.append(to.annotated_type.CreateDB)
 
                     # If relation to Document...
                     elif isinstance(to, RelationToDocument):
-                        # Add edge to Document.Create and use
+                        # Add edge to Document.CreateDB and use
                         if to.edge_model:
                             annotations.append(
-                                to.annotated_type.Create.apply_edge_model(to.edge_model)
+                                to.annotated_type.CreateDB.apply_edge_model(
+                                    to.edge_model
+                                )
                             )
                         else:
-                            # Add or use Document.Create
-                            annotations.append(to.annotated_type.Create)
+                            # Add or use Document.CreateDB
+                            annotations.append(to.annotated_type.CreateDB)
 
                     # Otherwise, if it is anything that can be generic,
                     # pass the type option back to the this function to get the
@@ -298,12 +302,12 @@ def build_generic_create_model_from_type_option(
                     elif isinstance(to, RelationToGeneric):
                         if to.edge_model:
                             annotations.append(
-                                build_generic_create_model_from_type_option(
+                                build_generic_create_db_model_from_type_option(
                                     to
                                 ).apply_edge_model(to.edge_model)
                             )
                         annotations.append(
-                            build_generic_create_model_from_type_option(to)
+                            build_generic_create_db_model_from_type_option(to)
                         )
 
         if field_definition.wrapper:
@@ -313,16 +317,16 @@ def build_generic_create_model_from_type_option(
         else:
             annotation = Union[*annotations]  # ty:ignore[invalid-type-form]
 
-        bound_create_model.model_fields[field_name] = FieldInfo(
+        bound_create_db_model.model_fields[field_name] = FieldInfo(
             annotation=annotation,
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
             discriminator="type" if not field_definition.wrapper else None,
         )
 
-        bound_create_model.model_rebuild(force=True)
+        bound_create_db_model.model_rebuild(force=True)
 
-    return bound_create_model
+    return bound_create_db_model
 
 
 def get_relation_annotation_types(
@@ -340,23 +344,23 @@ def get_relation_annotation_types(
             else:
                 types.append(type_option.annotated_type.ReferenceSet)
                 if type_option.annotated_type._meta.create_inline:
-                    types.append(type_option.annotated_type.Create)
+                    types.append(type_option.annotated_type.CreateDB)
 
         elif isinstance(type_option, RelationToDocument):
             if type_option.edge_model:
                 types.append(
-                    type_option.annotated_type.Create.apply_edge_model(
+                    type_option.annotated_type.CreateDB.apply_edge_model(
                         type_option.edge_model
                     )
                 )
             else:
-                types.append(type_option.annotated_type.Create)
+                types.append(type_option.annotated_type.CreateDB)
 
         elif isinstance(
             type_option,
             (RelationToGeneric),
         ):
-            bound_reified_create_type = build_generic_create_model_from_type_option(
+            bound_reified_create_type = build_generic_create_db_model_from_type_option(
                 type_option
             )
 
@@ -382,11 +386,11 @@ def get_embedded_annotation_types(
 ) -> UnionType:
     types = []
     for type_option in field_definition.type_options:
-        types.append(type_option.annotated_type.Create)
+        types.append(type_option.annotated_type.CreateDB)
     return Union[*types]  # type: ignore
 
 
-def add_fields_to_create_model(
+def add_fields_to_create_db_model(
     model: type[
         Document
         | Embedded
@@ -399,9 +403,7 @@ def add_fields_to_create_model(
 ) -> None:
     # Literal fields
     for field_name, field_definition in model._meta.fields.literal_fields.items():
-        if field_definition.db_field:
-            continue
-        model.Create.model_fields[field_name] = FieldInfo(
+        model.CreateDB.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
@@ -409,13 +411,10 @@ def add_fields_to_create_model(
 
     # Embedded fields
     for field_name, field_definition in model._meta.fields.embedded_fields.items():
-        if field_definition.db_field:
-            continue
-
         annotation = get_embedded_annotation_types(field_definition)
 
         if annotation:
-            model.Create.model_fields[field_name] = FieldInfo(
+            model.CreateDB.model_fields[field_name] = FieldInfo(
                 annotation=annotation,  # type: ignore
                 validation_alias=to_camel(field_name),
                 discriminator="type",
@@ -423,9 +422,6 @@ def add_fields_to_create_model(
 
     # Relation fields
     for field_name, field_definition in model._meta.fields.relation_fields.items():
-        if field_definition.db_field:
-            continue
-
         optional = False
         if (
             field_definition.field_required_to_fulfil
@@ -436,7 +432,7 @@ def add_fields_to_create_model(
         annotation = get_relation_annotation_types(field_definition)
 
         if annotation:
-            model.Create.model_fields[field_name] = FieldInfo(
+            model.CreateDB.model_fields[field_name] = FieldInfo(
                 annotation=(annotation | None) if optional else annotation,  # type: ignore
                 validation_alias=to_camel(field_name),
                 metadata=field_definition.validators,  # type: ignore
@@ -448,11 +444,8 @@ def add_fields_to_create_model(
         field_name,
         field_definition,
     ) in model._meta.fields.annotated_value_fields.items():
-        if field_definition.db_field:
-            continue
-
-        model.Create.model_fields[field_name] = FieldInfo(
+        model.CreateDB.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
         )
 
-    model.Create.model_rebuild(force=True)
+    model.CreateDB.model_rebuild(force=True)

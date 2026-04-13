@@ -14,6 +14,11 @@ from pydantic import PydanticUndefinedAnnotation
 from pangloss.exceptions import (
     PanglossInitialisationError,
 )
+from pangloss.model_setup.initialise_action_classes.initialise_create_db_model import (
+    add_fields_to_create_db_model,
+    can_have_create_db_model,
+    initialise_create_db_model,
+)
 from pangloss.model_setup.initialise_action_classes.initialise_create_model import (
     add_fields_to_create_model,
     can_have_create_model,
@@ -336,6 +341,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 initialise_field_definitions(model)
                 if can_have_create_model(model):
                     initialise_create_model(model)
+                if can_have_create_db_model(model):
+                    initialise_create_db_model(model)
             except AttributeError:
                 print(model.__name__, "error init create model")
 
@@ -350,6 +357,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 if can_have_create_model(model):
                     add_fields_to_create_model(model)
                 model._initialised = True
+                if can_have_create_db_model(model):
+                    add_fields_to_create_db_model(model)
                 model.model_rebuild(force=True)
             except (AttributeError, TypeError) as e:
                 print(model.__name__, "error add field to model create", e)

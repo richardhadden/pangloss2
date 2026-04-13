@@ -39,7 +39,7 @@ class Conjunction(_DeclaredClass, WithMeta[ConjunctionMeta]):
     _meta: ClassVar[ConjunctionMeta] = ConjunctionMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     Create: ClassVar[type[_ConjunctionCreateBase]]
-    DBCreate: ClassVar[type[_ConjunctionCreateDBBase]]
+    CreateDB: ClassVar[type[_ConjunctionCreateDBBase]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
