@@ -16,8 +16,6 @@ from pangloss.model_setup.model_bases.conjunction import (
 )
 from pangloss.model_setup.model_bases.document import (
     Document,
-    _DocumentCreateBase,
-    _DocumentCreateDBBase,
 )
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
@@ -807,15 +805,16 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
         name: str
         carried_out_by: Person
         action_carried_out: Annotated[Action, DBField]
+        # something_else: SomethingElse
 
         @staticmethod
-        def to_db_create(data: _DocumentCreateBase) -> _DocumentCreateDBBase:
+        def to_db_create(incoming_data):
             action = {
                 "type": "Action",
-                "label": "An Action",
+                "label": incoming_data.name + " action",
             }
             return Statement.CreateDB(
-                data=data,  # type: ignore
+                incoming_data,  # type: ignore
                 action_carried_out=action,  # type: ignore
             )
 
@@ -823,6 +822,12 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
         pass
 
     class Action(Document):
+        pass
+
+    class SomethingElse(Document):
+        pass
+
+    class Other(Document):
         pass
 
     st = Statement(
@@ -841,3 +846,4 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
 
     assert isinstance(st_db.action_carried_out, Action.CreateDB)
     assert st_db.action_carried_out.type == "Action"
+    assert st_db.action_carried_out.label == "A Statement action"

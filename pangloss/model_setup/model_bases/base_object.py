@@ -108,16 +108,18 @@ class _CreateBase(_ActionClass):
             return self._owner.to_db_create(self)  # type: ignore
 
         if hasattr(self._owner, "to_db"):
-            return self._owner.to_db(**self.model_dump())  # type: ignore
+            return self._owner.to_db(self)  # type: ignore
 
         return self._owner.CreateDB(**self.model_dump())  # type: ignore
 
 
 class _CreateDBBase(_CreateBase):
-    def __init__(self, data: _CreateBase | None = None, **db_fields):
-        if data:
-            super().__init__(**data.model_dump(), **db_fields)
+    def __init__(self, incoming_data: _CreateBase | None = None, **db_fields):
+        print(incoming_data, db_fields)
+        if incoming_data:
+            super().__init__(**incoming_data.model_dump(), **db_fields)
         else:
+            print(">>", db_fields)
             super().__init__(**db_fields)
 
 
