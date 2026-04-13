@@ -424,10 +424,18 @@ def add_fields_to_create_model(
         if field_definition.db_field:
             continue
 
+        optional = False
+        if (
+            field_definition.field_required_to_fulfil
+            and not field_definition.subclasses_parent_fields
+        ):
+            optional = True
+
         annotation = get_relation_annotation_types(field_definition)
+
         if annotation:
             model.Create.model_fields[field_name] = FieldInfo(
-                annotation=annotation,
+                annotation=(annotation | None) if optional else annotation,  # type: ignore
                 validation_alias=to_camel(field_name),
                 metadata=field_definition.validators,  # type: ignore
                 discriminator="type" if not field_definition.wrapper else None,

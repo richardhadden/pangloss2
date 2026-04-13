@@ -7,7 +7,9 @@ import pytest
 from pydantic import AnyHttpUrl, ValidationError
 
 from pangloss.exceptions import PanglossMetaError
+from pangloss.model_setup.field_definitions import FieldSubclassing
 from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
+from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import (
     Conjunction,
     _ConjunctionCreateBase,
@@ -16,7 +18,7 @@ from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
-from pangloss.model_setup.model_bases.helpers import DBField, ViaEdge
+from pangloss.model_setup.model_bases.helpers import DBField, Fulfils, ViaEdge
 from pangloss.model_setup.model_bases.reified_relation import (
     ReifiedRelation,
     _ReifiedRelationCreateBase,
@@ -719,3 +721,33 @@ def test_db_field_not_in_create_model():
     assert "db_person_field" not in Statement.Create.model_fields
     assert "embedded_field" in Statement.Create.model_fields
     assert "db_embedded_field" not in Statement.Create.model_fields
+
+
+@no_type_check
+def test_inherited_from_fulfils_is_optional():
+    class PersonInPlace(Document):
+        located_person: Person
+        place: Place
+
+    class Activity(Document, Fulfils[PersonInPlace]):
+        person_responsible: Annotated[
+            Person,
+            RelationConfig(
+                subclasses_parent_fields=[
+                    FieldSubclassing("located_person", field_on_model=PersonInPlace)
+                ]
+            ),
+        ]
+
+    class Person(Entity):
+        pass
+
+    class Place(Entity):
+        pass
+
+    assert (
+        Activity.Create.model_fields["person_responsible"].annotation
+        is Person.ReferenceSet
+    )
+
+    assert Activity.Create.model_fields["place"].annotation == Place.ReferenceSet | None
