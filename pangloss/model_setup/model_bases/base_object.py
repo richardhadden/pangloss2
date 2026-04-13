@@ -103,11 +103,22 @@ class _ReferenceSetBase(_ActionClass):
 
 
 class _CreateBase(_ActionClass):
-    pass
+    def to_db_model(self):
+        if hasattr(self._owner, "to_db_create"):
+            return self._owner.to_db_create(self)  # type: ignore
+
+        if hasattr(self._owner, "to_db"):
+            return self._owner.to_db(**self.model_dump())  # type: ignore
+
+        return self._owner.CreateDB(**self.model_dump())  # type: ignore
 
 
 class _CreateDBBase(_CreateBase):
-    pass
+    def __init__(self, data: _CreateBase | None = None, **db_fields):
+        if data:
+            super().__init__(**data.model_dump(), **db_fields)
+        else:
+            super().__init__(**db_fields)
 
 
 class _ViewBase(_ActionClass):

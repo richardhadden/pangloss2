@@ -14,7 +14,11 @@ from pangloss.model_setup.model_bases.conjunction import (
     Conjunction,
     _ConjunctionCreateDBBase,
 )
-from pangloss.model_setup.model_bases.document import Document
+from pangloss.model_setup.model_bases.document import (
+    Document,
+    _DocumentCreateBase,
+    _DocumentCreateDBBase,
+)
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
@@ -763,3 +767,77 @@ def test_db_field_in_create_db_model():
     assert "db_person_field" in Statement.CreateDB.model_fields
     assert "embedded_field" in Statement.CreateDB.model_fields
     assert "db_embedded_field" in Statement.CreateDB.model_fields
+
+
+@no_type_check
+def test_can_convert_create_to_create_db_model():
+    class Statement(Document):
+        name: str
+        carried_out_by: Person
+        action_carried_out: Action
+
+    class Person(Entity):
+        pass
+
+    class Action(Document):
+        pass
+
+    st = Statement(
+        label="A Statement Label",
+        name="A Statement",
+        carried_out_by={"type": "Person", "id": uuid7()},
+        action_carried_out={"type": "Action", "label": "An Action"},
+    )
+
+    st_db = st.to_db_model()
+
+    assert isinstance(st_db, Statement.CreateDB)
+    assert st_db.label == "A Statement Label"
+    assert st_db.name == "A Statement"
+    assert isinstance(st_db.carried_out_by, Person.ReferenceSet)
+    assert st_db.carried_out_by.type == "Person"
+
+    assert isinstance(st_db.action_carried_out, Action.CreateDB)
+    assert st_db.action_carried_out.type == "Action"
+
+
+@no_type_check
+def test_can_convert_create_to_create_db_model_with_declared_conversion():
+    class Statement(Document):
+        name: str
+        carried_out_by: Person
+        action_carried_out: Annotated[Action, DBField]
+
+        @staticmethod
+        def to_db_create(data: _DocumentCreateBase) -> _DocumentCreateDBBase:
+            action = {
+                "type": "Action",
+                "label": "An Action",
+            }
+            return Statement.CreateDB(
+                data=data,  # type: ignore
+                action_carried_out=action,  # type: ignore
+            )
+
+    class Person(Entity):
+        pass
+
+    class Action(Document):
+        pass
+
+    st = Statement(
+        label="A Statement Label",
+        name="A Statement",
+        carried_out_by={"type": "Person", "id": uuid7()},
+    )
+
+    st_db = st.to_db_model()
+
+    assert isinstance(st_db, Statement.CreateDB)
+    assert st_db.label == "A Statement Label"
+    assert st_db.name == "A Statement"
+    assert isinstance(st_db.carried_out_by, Person.ReferenceSet)
+    assert st_db.carried_out_by.type == "Person"
+
+    assert isinstance(st_db.action_carried_out, Action.CreateDB)
+    assert st_db.action_carried_out.type == "Action"
