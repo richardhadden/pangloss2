@@ -290,6 +290,11 @@ def build_relatable_field_definition(
     else:
         field_subclassings = set()
 
+    if relation_config:
+        bind_to_child_field = relation_config.bind_to_child_field
+    else:
+        bind_to_child_field = []
+
     reverse_name = (
         relation_config.reverse_name
         if relation_config and relation_config.reverse_name
@@ -312,6 +317,7 @@ def build_relatable_field_definition(
             reverse_name=reverse_name,
             wrapper=list,
             db_field=is_db_field,
+            bind_to_child_field=bind_to_child_field,
         )
     elif isinstance(field_info.annotation, TypeVar):
         return RelationFieldDefinition(
@@ -330,6 +336,7 @@ def build_relatable_field_definition(
             reverse_name=reverse_name,
             wrapper=None,
             db_field=is_db_field,
+            bind_to_child_field=bind_to_child_field,
         )
 
     elif is_list_relatable(field_info.annotation):
@@ -355,6 +362,7 @@ def build_relatable_field_definition(
             reverse_name=reverse_name,
             wrapper=list,
             db_field=is_db_field,
+            bind_to_child_field=bind_to_child_field,
         )
 
     else:
@@ -379,6 +387,7 @@ def build_relatable_field_definition(
             reverse_name=reverse_name,
             wrapper=None,
             db_field=is_db_field,
+            bind_to_child_field=bind_to_child_field,
         )
 
 

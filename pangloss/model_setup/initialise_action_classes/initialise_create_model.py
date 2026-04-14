@@ -11,6 +11,7 @@ from pydantic.fields import FieldInfo
 
 from pangloss.model_setup.field_definitions import (
     EmbeddedFieldDefinition,
+    FieldBinding,
     ParameterTypeOptions,
     RelationFieldDefinition,
     RelationToDocument,
@@ -325,8 +326,21 @@ def build_generic_create_model_from_type_option(
     return bound_create_model
 
 
+def build_bound_field_create_model(
+    create_model: type[_CreateBase], field_bindings: list[FieldBinding]
+) -> type[_CreateBase]:
+
+    bound_fields_create_model = pydantic_create_model(
+        f"{create_model.__name__}[bound=({','.join(str(fb) for fb in field_bindings)})]",
+        __base__=create_model,
+    )
+
+    print(bound_fields_create_model)
+    print(bound_fields_create_model.model_fields)
+
+
 def get_relation_annotation_types(
-    field_definition: RelationFieldDefinition,
+    field_definition: RelationFieldDefinition, field_bindings: list[FieldBinding]
 ) -> UnionType | type[list[UnionType]] | tuple[list[UnionType]] | None:
     types = []
     for type_option in field_definition.type_options:
@@ -343,14 +357,16 @@ def get_relation_annotation_types(
                     types.append(type_option.annotated_type.Create)
 
         elif isinstance(type_option, RelationToDocument):
-            if type_option.edge_model:
-                types.append(
-                    type_option.annotated_type.Create.apply_edge_model(
-                        type_option.edge_model
-                    )
+            if field_bindings:
+                create_model = build_bound_field_create_model(
+                    type_option.annotated_type.Create, field_bindings
                 )
             else:
-                types.append(type_option.annotated_type.Create)
+                create_model = type_option.annotated_type.Create
+            if type_option.edge_model:
+                types.append(create_model.apply_edge_model(type_option.edge_model))
+            else:
+                types.append(create_model)
 
         elif isinstance(
             type_option,
@@ -433,7 +449,9 @@ def add_fields_to_create_model(
         ):
             optional = True
 
-        annotation = get_relation_annotation_types(field_definition)
+        annotation = get_relation_annotation_types(
+            field_definition, field_bindings=field_definition.bind_to_child_field
+        )
 
         if annotation:
             model.Create.model_fields[field_name] = FieldInfo(

@@ -7,7 +7,11 @@ import pytest
 from pydantic import AnyHttpUrl, ValidationError
 
 from pangloss.exceptions import PanglossMetaError
-from pangloss.model_setup.field_definitions import FieldSubclassing
+from pangloss.model_setup.field_definitions import (
+    FieldBinding,
+    FieldSubclassing,
+    RelationFieldDefinition,
+)
 from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.configs import RelationConfig
 from pangloss.model_setup.model_bases.conjunction import (
@@ -751,3 +755,27 @@ def test_inherited_from_fulfils_is_optional():
     )
 
     assert Activity.Create.model_fields["place"].annotation == Place.ReferenceSet | None
+
+
+def test_create_model_with_field_binding():
+    class Statement(Document):
+        when: datetime.date
+        action: Annotated[
+            Action,
+            RelationConfig(
+                bind_to_child_field=[
+                    FieldBinding(bound_field="when", child_fields=["action_when"])
+                ]
+            ),
+        ]
+
+    class Action(Document):
+        action_when: datetime.date
+
+    statement_action_field = Statement._meta.fields["action"]
+    assert isinstance(statement_action_field, RelationFieldDefinition)
+    assert statement_action_field.bind_to_child_field == [
+        FieldBinding(bound_field="when", child_fields=["action_when"])
+    ]
+
+    assert False

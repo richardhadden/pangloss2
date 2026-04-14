@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from typing import TYPE_CHECKING, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Protocol, TypeVar, runtime_checkable
 
 from annotated_types import BaseMetadata
 from frozendict import frozendict
@@ -133,6 +133,15 @@ class FieldSubclassing:
 
 
 @dataclass(frozen=True, kw_only=True)
+class FieldBinding:
+    bound_field: str
+    child_fields: list[str]
+    allowed_types: list[_DeclaredClass] = dataclass_field(default_factory=list)
+    excluded_types: list[_DeclaredClass] = dataclass_field(default_factory=list)
+    converter: Callable[[Any], Any] | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):
     annotated_type: TRelationFieldDefinitionAnnotation  # pyright: ignore[reportIncompatibleVariableOverride]
     type_options: set[RelationOption] = dataclass_field(default_factory=set)
@@ -140,6 +149,7 @@ class RelationFieldDefinition(FieldDefinition):
     subclasses_parent_fields: set[str | FieldSubclassing]
     wrapper: type[list | tuple] | None = None
     validators: list[type[BaseMetadata]] = dataclass_field(default_factory=list)
+    bind_to_child_field: list[FieldBinding] = dataclass_field(default_factory=list)
 
     @staticmethod
     def type_option_contains_typevar(

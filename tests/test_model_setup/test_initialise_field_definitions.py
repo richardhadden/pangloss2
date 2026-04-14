@@ -10,6 +10,7 @@ from pangloss.model_setup.field_definitions import (
     AnnotatedValueFieldDefinition,
     EmbeddedFieldDefinition,
     EmbeddedOption,
+    FieldBinding,
     FieldFulfilment,
     FieldSubclassing,
     ListFieldDefinition,
@@ -1809,3 +1810,25 @@ def test_build_meta_fields_for_reified_relation_document():
     assert identification_target_field.type_options == set(
         [RelationToTypeVar(annotated_type=target_param, type_var_name="Target")]
     )
+
+
+def test_field_definition_with_field_binding():
+    class Statement(Document):
+        when: date
+        action: Annotated[
+            Action,
+            RelationConfig(
+                bind_to_child_field=[
+                    FieldBinding(bound_field="when", child_fields=["action_when"])
+                ]
+            ),
+        ]
+
+    class Action(Document):
+        action_when: date
+
+    statement_action_field = Statement._meta.fields["action"]
+    assert isinstance(statement_action_field, RelationFieldDefinition)
+    assert statement_action_field.bind_to_child_field == [
+        FieldBinding(bound_field="when", child_fields=["action_when"])
+    ]
