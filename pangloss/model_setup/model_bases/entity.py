@@ -61,7 +61,7 @@ class _EntityReferenceSetBase(_ReferenceSetBase):
 
 
 class _EntityReferenceView(_ReferenceViewBase):
-    pass
+    label: str
 
 
 class Entity(_DeclaredClass, WithMeta[EntityMeta]):

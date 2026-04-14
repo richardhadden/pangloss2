@@ -77,8 +77,21 @@ class _ActionClass(_BaseObject):
     def apply_edge_model(cls, edge_model: type[EdgeModel]) -> type[Self]:
         """Creates a variant of the model with additional 'edge_property' field
         of the type supplied"""
+
+        # For a ReifiedRelationDocument, we need to construct a better name for the class by
+        # some introspection of the origin and args
+        if origin := cls._owner.__pydantic_generic_metadata__["origin"]:
+            base_model_name = (
+                f"{origin.__name__}"
+                f"[{', '.join(arg.__name__ for arg in cls._owner.__pydantic_generic_metadata__['args'])}]"
+                f"{cls.__name__.split(']')[1]}"
+            )
+
+        else:
+            base_model_name = cls.__name__
+
         model = create_model(
-            f"{cls.__name__}Via{edge_model.__name__}",
+            f"{base_model_name}Via{edge_model.__name__}",
             __base__=cls,
             edge_properties=edge_model,
         )

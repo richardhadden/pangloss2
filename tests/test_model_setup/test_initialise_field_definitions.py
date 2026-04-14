@@ -36,7 +36,10 @@ from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded, EmbeddedMeta
 from pangloss.model_setup.model_bases.entity import Entity, EntityMeta
 from pangloss.model_setup.model_bases.helpers import DBField, Fulfils, ViaEdge
-from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
+from pangloss.model_setup.model_bases.reified_relation import (
+    ReifiedRelation,
+    ReifiedRelationDocument,
+)
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
 from pangloss.model_setup.utils import get_all_parent_classes
@@ -1784,3 +1787,25 @@ def test_db_field():
     assert Statement._meta.fields["person_field"].db_field is False
     assert Statement._meta.fields["db_person_field"].db_field is True
     assert Statement._meta.fields["db_embedded_field"].db_field is True
+
+
+def test_build_meta_fields_for_reified_relation_document():
+    """Verify ReifiedRelation fields correctly use RelationToTypeVar for type vars."""
+
+    class Identification[Target](ReifiedRelationDocument[Target]):
+        target: list[Target]
+
+    assert Identification._meta
+    identification_target_field = Identification._meta.fields["target"]
+    assert isinstance(identification_target_field, RelationFieldDefinition)
+    assert identification_target_field.field_name == "target"
+    assert identification_target_field.field_on_model is Identification
+    assert get_origin(identification_target_field.annotated_type) is list
+    typevar_arg = get_args(identification_target_field.annotated_type)[0]
+    assert isinstance(typevar_arg, TypeVar)
+    assert typevar_arg.__name__ == "Target"
+
+    target_param = Identification.__pydantic_generic_metadata__["parameters"][0]
+    assert identification_target_field.type_options == set(
+        [RelationToTypeVar(annotated_type=target_param, type_var_name="Target")]
+    )

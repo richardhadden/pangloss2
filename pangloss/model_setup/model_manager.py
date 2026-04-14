@@ -351,8 +351,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
             try:
                 initialise_reference_set_model(model)
                 initialise_reference_view_model(model)
-            except AttributeError:
-                print(model.__name__, "error initialising reference field")
+            except AttributeError as e:
+                print(model.__name__, "error initialising reference field", e)
 
         for model in uninitialised_models:
             try:

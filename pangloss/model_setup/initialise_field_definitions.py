@@ -32,6 +32,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToDocument,
     RelationToEntity,
     RelationToReifiedRelation,
+    RelationToReifiedRelationDocument,
     RelationToSemanticSpace,
     RelationToTypeVar,
     TRelationFieldDefinitionAnnotation,
@@ -44,7 +45,10 @@ from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.embedded import Embedded
 from pangloss.model_setup.model_bases.entity import Entity
 from pangloss.model_setup.model_bases.helpers import DBField, Fulfils
-from pangloss.model_setup.model_bases.reified_relation import ReifiedRelation
+from pangloss.model_setup.model_bases.reified_relation import (
+    ReifiedRelation,
+    ReifiedRelationDocument,
+)
 from pangloss.model_setup.model_bases.semantic_space import SemanticSpace
 from pangloss.model_setup.model_bases.trait import NonHeritableTrait, Trait
 from pangloss.model_setup.utils import (
@@ -153,7 +157,10 @@ def build_relation_options(
         and issubclass(annotation, _DeclaredClass)
         and (origin := annotation.__pydantic_generic_metadata__["origin"])
         and isclass(origin)
-        and issubclass(origin, (ReifiedRelation, SemanticSpace, Conjunction))
+        and issubclass(
+            origin,
+            (ReifiedRelation, ReifiedRelationDocument, SemanticSpace, Conjunction),
+        )
     ):
         type_args = annotation.__pydantic_generic_metadata__["args"]
         parameters = origin.__pydantic_generic_metadata__["parameters"]
@@ -182,6 +189,16 @@ def build_relation_options(
             model._depends_on_classes.add(origin)
             relation_options.append(
                 RelationToReifiedRelation(
+                    annotated_type=annotation,
+                    edge_model=edge_model,
+                    base_type=origin,
+                    parameter_type_options=frozendict(type_options),
+                )
+            )
+        if issubclass(origin, ReifiedRelationDocument):
+            model._depends_on_classes.add(origin)
+            relation_options.append(
+                RelationToReifiedRelationDocument(
                     annotated_type=annotation,
                     edge_model=edge_model,
                     base_type=origin,
@@ -713,7 +730,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 field_definition=field_definition,
             )
 
-        if issubclass(model, ReifiedRelation):
+        if issubclass(model, (ReifiedRelation, ReifiedRelationDocument)):
             if get_origin(field_info.annotation) and isinstance(
                 get_args(field_info.annotation)[0], TypeVar
             ):

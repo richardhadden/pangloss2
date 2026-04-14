@@ -9,7 +9,9 @@ from pydantic.fields import FieldInfo
 
 from pangloss.exceptions import PanglossModelError
 from pangloss.model_setup.model_bases.base_object import _DeclaredClass
+from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.reified_relation import ReifiedRelationDocument
 
 
 def initialise_reference_set_model(model: type[_DeclaredClass]):
@@ -52,7 +54,7 @@ def initialise_reference_set_model(model: type[_DeclaredClass]):
 
 
 def initialise_reference_view_model(model: type[_DeclaredClass]):
-    if not issubclass(model, (Entity,)):
+    if not issubclass(model, (Entity, Document, ReifiedRelationDocument)):
         return
 
     # Checks if Create model has already been created; do not duplicate as we depend
@@ -72,17 +74,21 @@ def initialise_reference_view_model(model: type[_DeclaredClass]):
     # Extracts from the _DeclaredClass definition the annotation for .Create
     reference_view_base_type = get_args(get_args(type_hints["ReferenceView"])[0])[0]
 
-    if model._meta.accept_url_as_id:
-        id_type = UUID | AnyHttpUrl
+    id_type = UUID
+
+    if issubclass(model, ReifiedRelationDocument) and (
+        origin := model.__pydantic_generic_metadata__["origin"]
+    ):
+        type_name = origin.__name__
     else:
-        id_type = UUID
+        type_name = model.__name__
 
     model.ReferenceView = pydantic_create_model(
         f"{model.__name__}ReferenceView",
         __base__=reference_view_base_type,
         _owner=(ClassVar[model], model),
         __config__=ConfigDict(alias_generator=to_camel),
-        type=(Literal[model.__name__], model.__name__),  # type: ignore
+        type=(Literal[type_name], type_name),  # type: ignore
         id=id_type,
         label=str,
     )  # pyright: ignore[reportAttributeAccessIssue]

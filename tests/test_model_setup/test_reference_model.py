@@ -3,8 +3,10 @@ from uuid import UUID, uuid7
 
 from pydantic import AnyHttpUrl
 
+from pangloss.model_setup.model_bases.document import Document
 from pangloss.model_setup.model_bases.edge_model import EdgeModel
 from pangloss.model_setup.model_bases.entity import Entity
+from pangloss.model_setup.model_bases.reified_relation import ReifiedRelationDocument
 
 
 def test_reference_set_on_entities():
@@ -59,7 +61,7 @@ def test_reference_view_on_entities():
 
     assert Person.ReferenceView
     assert Person.ReferenceView.model_fields["type"].annotation == Literal["Person"]
-    assert Person.ReferenceView.model_fields["id"].annotation == UUID | AnyHttpUrl
+    assert Person.ReferenceView.model_fields["id"].annotation == UUID
     assert "age" not in Person.ReferenceView.model_fields
 
 
@@ -107,5 +109,112 @@ def test_reference_view_on_entities_with_extra_fields():
 
     assert Person.ReferenceView
     assert Person.ReferenceView.model_fields["type"].annotation == Literal["Person"]
-    assert Person.ReferenceView.model_fields["id"].annotation == UUID | AnyHttpUrl
+    assert Person.ReferenceView.model_fields["id"].annotation == UUID
     assert Person.ReferenceView.model_fields["age"].annotation is int
+
+
+def test_reference_view_on_documents():
+    class Statement(Document):
+        age: int
+
+    assert Statement.ReferenceView
+    assert (
+        Statement.ReferenceView.model_fields["type"].annotation == Literal["Statement"]
+    )
+    assert Statement.ReferenceView.model_fields["id"].annotation == UUID
+    assert "age" not in Statement.ReferenceView.model_fields
+
+
+def test_reference_view_via_edge_on_document():
+    class Statement(Document):
+        pass
+
+    class Certainty(EdgeModel):
+        certainty: int
+
+    assert Statement.ReferenceView
+
+    assert (
+        Statement.ReferenceView.model_fields["type"].annotation == Literal["Statement"]
+    )
+
+    assert Statement.ReferenceView.apply_edge_model(Certainty)
+
+    assert issubclass(Statement.ReferenceView._via.Certainty, Statement.ReferenceView)
+
+    assert (
+        Statement.ReferenceView._via.Certainty.__name__
+        == "StatementReferenceViewViaCertainty"
+    )
+
+    assert (
+        Statement.ReferenceView._via.Certainty.model_fields[
+            "edge_properties"
+        ].annotation
+        is Certainty
+    )
+
+    assert (
+        Statement.ReferenceView._via.Certainty.model_fields["type"].annotation
+        == Literal["Statement"]
+    )
+
+    _uuid = uuid7()
+
+    p = Statement.ReferenceView(id=_uuid, label="something")
+    assert p.id == _uuid
+    assert p.label == "something"
+
+
+def test_reference_view_on_reified_relation_document():
+    class Action(Document):
+        pass
+
+    class InPlace[Target](ReifiedRelationDocument[Target]):
+        action: Action
+
+    class Person(Entity):
+        pass
+
+    assert InPlace[Person].ReferenceView
+
+    assert InPlace[Person].ReferenceView.model_fields["label"].annotation is str
+    assert (
+        InPlace[Person].ReferenceView.model_fields["type"].annotation
+        == Literal["InPlace"]
+    )
+
+
+def test_reference_view_on_reified_relation_document_via_edge_model():
+    class Action(Document):
+        pass
+
+    class InPlace[Target](ReifiedRelationDocument[Target]):
+        action: Action
+
+    class Person(Entity):
+        pass
+
+    class Certainty(EdgeModel):
+        certainty: int
+
+    assert InPlace[Person].ReferenceView
+
+    assert InPlace[Person].ReferenceView.model_fields["label"].annotation is str
+    assert (
+        InPlace[Person].ReferenceView.model_fields["type"].annotation
+        == Literal["InPlace"]
+    )
+
+    in_place_with_edge_model = InPlace[Person].ReferenceView.apply_edge_model(Certainty)
+
+    assert (
+        InPlace[Person].ReferenceView._via.Certainty.__name__
+        == "InPlace[Person]ReferenceViewViaCertainty"
+    )
+
+    assert issubclass(in_place_with_edge_model, InPlace[Person].ReferenceView)
+    assert (
+        in_place_with_edge_model.model_fields["edge_properties"].annotation is Certainty
+    )
+    assert in_place_with_edge_model.model_fields["label"].annotation is str

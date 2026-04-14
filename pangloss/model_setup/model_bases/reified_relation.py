@@ -1,7 +1,7 @@
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-from pydantic_meta_kit import InheritValue
+from pydantic_meta_kit import InheritValue, MetaRules
 
 from pangloss.model_setup.field_definitions import (
     FieldDefinition,
@@ -12,6 +12,7 @@ from pangloss.model_setup.model_bases.base_object import (
     _CreateBase,
     _CreateDBBase,
     _DeclaredClass,
+    _ReferenceViewBase,
 )
 
 
@@ -65,6 +66,24 @@ class ReifiedRelation[TTarget](_DeclaredClass):
         ModelManager.try_initialise_all_models(cls)
 
 
+class ReifiedRelationDocumentMeta(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    _owner_class: type[ReifiedRelationDocument] | InheritValue = InheritValue.AS_DEFAULT
+    require_label: Literal[False] = False
+    view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
+        default_factory=list
+    )
+    reference_view_extra_fields: Annotated[list[str], MetaRules.ACCUMULATE] = Field(
+        default_factory=list
+    )
+
+    field_definitions: ModelFields = Field(default_factory=ModelFields)
+
+    @property
+    def fields(self) -> ModelFieldDict[str, FieldDefinition]:
+        return self.field_definitions.fields
+
+
 class _ReifiedRelationDocumentCreateBase(_CreateBase):
     pass
 
@@ -73,15 +92,36 @@ class _ReifiedRelationDocumentCreateDBBase(_CreateDBBase):
     pass
 
 
-class ReifiedRelationDocument[Target](_DeclaredClass):
+class _ReifiedRelationDocumentReferenceView(_ReferenceViewBase):
+    label: str
+
+
+class ReifiedRelationDocument[TTarget](_DeclaredClass):
+    Meta: ClassVar[type[ReifiedRelationDocumentMeta]] = ReifiedRelationDocumentMeta
+    model_config = ConfigDict(validate_assignment=True)
+    _meta: ClassVar[ReifiedRelationDocumentMeta] = ReifiedRelationDocumentMeta()  # pyright: ignore[reportIncompatibleVariableOverride]
+
     Create: ClassVar[type[_ReifiedRelationDocumentCreateBase]]
     CreateDB: ClassVar[type[_ReifiedRelationCreateDBBase]]
+    ReferenceView: ClassVar[type[_ReifiedRelationDocumentReferenceView]]
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs) -> None:
 
-        if cls is ReifiedRelation:
+        if (
+            cls is ReifiedRelationDocument
+        ):  # or cls.__pydantic_generic_metadata__["args"]:
             return
+
+        cls._initialised = False
+
+        # Make sure _meta class is new and not inherited
+        cls._meta = cls.__dict__.get("_meta", ReifiedRelationDocumentMeta())  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        owner = cls
+
+        # Set owner class on cls._meta
+        cls._meta._owner_class = cls
 
         from pangloss.model_setup.model_manager import ModelManager
 
@@ -89,4 +129,4 @@ class ReifiedRelationDocument[Target](_DeclaredClass):
 
         ModelManager.try_initialise_all_models(cls)
 
-    target: Target
+    target: list[TTarget]

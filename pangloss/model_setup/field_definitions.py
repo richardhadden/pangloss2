@@ -214,8 +214,8 @@ class RelationToReifiedRelation(RelationOption):
 
 @dataclass(frozen=True, kw_only=True)
 class RelationToReifiedRelationDocument(RelationOption):
-    annotated_type: type[ReifiedRelationDocument]
-    base_type: type[ReifiedRelation]
+    annotated_type: TRelationFieldDefinitionAnnotation
+    base_type: type[ReifiedRelationDocument]
     parameter_type_options: frozendict[str, ParameterTypeOptions]
 
 
