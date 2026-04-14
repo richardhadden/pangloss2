@@ -24,8 +24,9 @@ from pangloss.model_setup.initialise_action_classes.initialise_create_model impo
     can_have_create_model,
     initialise_create_model,
 )
-from pangloss.model_setup.initialise_action_classes.initialise_reference_model import (
-    initialise_reference_model,
+from pangloss.model_setup.initialise_action_classes.initialise_reference_models import (
+    initialise_reference_set_model,
+    initialise_reference_view_model,
 )
 from pangloss.model_setup.initialise_field_definitions import (
     initialise_field_definitions,
@@ -348,7 +349,8 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
 
         for model in uninitialised_models:
             try:
-                initialise_reference_model(model)
+                initialise_reference_set_model(model)
+                initialise_reference_view_model(model)
             except AttributeError:
                 print(model.__name__, "error initialising reference field")
 

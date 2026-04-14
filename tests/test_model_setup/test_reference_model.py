@@ -51,3 +51,24 @@ def test_reference_set_with_edge_property():
     p = Person.ReferenceSet(id=_uuid, label="something")
     assert p.id == _uuid
     assert p.label is None
+
+
+def test_reference_view_on_entities():
+    class Person(Entity):
+        age: int
+
+    assert Person.ReferenceView
+    assert Person.ReferenceView.model_fields["type"].annotation == Literal["Person"]
+    assert Person.ReferenceView.model_fields["id"].annotation == UUID | AnyHttpUrl
+    assert "age" not in Person.ReferenceView.model_fields
+
+
+def test_reference_view_on_entities_with_extra_fields():
+    class Person(Entity):
+        _meta = Entity.Meta(reference_view_extra_fields=["age"])
+        age: int
+
+    assert Person.ReferenceView
+    assert Person.ReferenceView.model_fields["type"].annotation == Literal["Person"]
+    assert Person.ReferenceView.model_fields["id"].annotation == UUID | AnyHttpUrl
+    assert Person.ReferenceView.model_fields["age"].annotation is int
