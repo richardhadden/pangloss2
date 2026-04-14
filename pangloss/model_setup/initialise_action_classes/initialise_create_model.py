@@ -387,17 +387,16 @@ def get_relation_annotation_types(
 
         elif isinstance(type_option, RelationToDocument):
             if field_bindings:
-                print("has bound fields")
-                cm = build_bound_field_create_model(
+                create_model = build_bound_field_create_model(
                     type_option.annotated_type.Create, field_bindings
                 )
             else:
-                cm = type_option.annotated_type.Create
+                create_model = type_option.annotated_type.Create
 
             if type_option.edge_model:
-                types.append(cm.apply_edge_model(type_option.edge_model))
+                types.append(create_model.apply_edge_model(type_option.edge_model))
             else:
-                types.append(cm)
+                types.append(create_model)
 
         elif isinstance(
             type_option,
@@ -540,8 +539,14 @@ def add_fields_to_create_model(
         if field_definition.db_field:
             continue
 
+        annotation = field_definition.annotated_type
+        if field_has_inherited_field_bindings(
+            fields_to_bind, field_name, field_definition.field_on_model
+        ):
+            annotation = annotation | None
+
         model.model_fields[field_name] = FieldInfo(
-            annotation=field_definition.annotated_type,
+            annotation=annotation,
         )
 
     model.model_rebuild(force=True)
