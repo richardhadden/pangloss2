@@ -63,6 +63,43 @@ def test_reference_view_on_entities():
     assert "age" not in Person.ReferenceView.model_fields
 
 
+def test_reference_view_via_edge():
+    class Person(Entity):
+        pass
+
+    class Certainty(EdgeModel):
+        certainty: int
+
+    assert Person.ReferenceView
+
+    assert Person.ReferenceView.model_fields["type"].annotation == Literal["Person"]
+
+    assert Person.ReferenceView.apply_edge_model(Certainty)
+
+    assert issubclass(Person.ReferenceView._via.Certainty, Person.ReferenceView)
+
+    assert (
+        Person.ReferenceView._via.Certainty.__name__
+        == "PersonReferenceViewViaCertainty"
+    )
+
+    assert (
+        Person.ReferenceView._via.Certainty.model_fields["edge_properties"].annotation
+        is Certainty
+    )
+
+    assert (
+        Person.ReferenceView._via.Certainty.model_fields["type"].annotation
+        == Literal["Person"]
+    )
+
+    _uuid = uuid7()
+
+    p = Person.ReferenceView(id=_uuid, label="something")
+    assert p.id == _uuid
+    assert p.label == "something"
+
+
 def test_reference_view_on_entities_with_extra_fields():
     class Person(Entity):
         _meta = Entity.Meta(reference_view_extra_fields=["age"])
