@@ -1,4 +1,5 @@
 import datetime
+from inspect import isclass
 from types import UnionType
 from typing import Annotated, Literal, get_args, get_origin, no_type_check
 from uuid import UUID, uuid7
@@ -10,7 +11,6 @@ from pangloss.exceptions import PanglossMetaError
 from pangloss.model_setup.field_definitions import (
     FieldBinding,
     FieldSubclassing,
-    RelationFieldDefinition,
 )
 from pangloss.model_setup.model_bases.annotated_value import AnnotatedValue
 from pangloss.model_setup.model_bases.configs import RelationConfig
@@ -758,24 +758,29 @@ def test_inherited_from_fulfils_is_optional():
 
 
 def test_create_model_with_field_binding():
+    class Action(Document):
+        action_when: datetime.date
+        action_when_optional: datetime.date | None
+
     class Statement(Document):
         when: datetime.date
         action: Annotated[
             Action,
             RelationConfig(
                 bind_to_child_field=[
-                    FieldBinding(bound_field="when", child_fields=["action_when"])
+                    FieldBinding(
+                        bound_field="when",
+                        child_fields=["action_when", "action_when_optional"],
+                        allowed_type_names=["Action"],
+                    )
                 ]
             ),
         ]
 
-    class Action(Document):
-        action_when: datetime.date
-
-    statement_action_field = Statement._meta.fields["action"]
-    assert isinstance(statement_action_field, RelationFieldDefinition)
-    assert statement_action_field.bind_to_child_field == [
-        FieldBinding(bound_field="when", child_fields=["action_when"])
-    ]
-
-    assert False
+    action_model = Statement.Create.model_fields["action"].annotation
+    assert isclass(action_model) and issubclass(action_model, Action.Create)
+    assert action_model.model_fields["action_when"].annotation == datetime.date | None
+    assert (
+        action_model.model_fields["action_when_optional"].annotation
+        == datetime.date | None
+    )

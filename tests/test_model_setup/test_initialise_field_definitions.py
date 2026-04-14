@@ -1,6 +1,6 @@
 from datetime import date, datetime
-from types import UnionType
-from typing import Annotated, TypeVar, get_args, get_origin
+from types import NoneType, UnionType
+from typing import Annotated, Optional, TypeVar, get_args, get_origin
 
 import pytest
 from annotated_types import MaxLen
@@ -117,6 +117,17 @@ def test_field_definition_for_literal_field():
     assert string_field_def.model_field is Statement.model_fields["string"]
     assert string_field_def.validators == [MaxLen(1)]
     assert string_field_def.field_on_model is Statement
+
+
+def test_field_definition_for_optional_literal_field():
+    class Statement(Document):
+        integer: int | None = None
+        integer_two: Optional[int]
+
+    integer_field_def = Statement._meta.fields["integer"]
+    assert integer_field_def.annotated_type == int | NoneType
+    integer_two_field_def = Statement._meta.fields["integer_two"]
+    assert integer_two_field_def.annotated_type == int | NoneType
 
 
 def test_field_definition_for_list_field():

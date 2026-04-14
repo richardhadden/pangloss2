@@ -1,6 +1,6 @@
 from functools import cache
 from types import UnionType
-from typing import Annotated, ClassVar, Literal, TypeVar, Union
+from typing import Annotated, ClassVar, Literal, TypeVar, Union, cast
 from uuid import UUID
 
 from frozendict import frozendict
@@ -64,34 +64,25 @@ def get_model_validators(model):
 
 
 def build_id_field_on_create_model(model) -> None:
-    assert model.Create
+    assert model
     if getattr(model._meta, "create_with_id", False):
         annotation = UUID | None
         if getattr(model._meta, "accept_url_as_id", False):
             annotation = UUID | AnyHttpUrl | None
-        model.Create.model_fields["id"] = FieldInfo(annotation=annotation, default=None)
-        model.Create.model_fields["create_new"] = FieldInfo(
+        model.model_fields["id"] = FieldInfo(annotation=annotation, default=None)
+        model.model_fields["create_new"] = FieldInfo(
             annotation=Literal[True] | None,  # pyright: ignore[reportArgumentType]
             default=None,  # pyright: ignore[reportArgumentType]
         )
-        model.Create.model_rebuild()
+        model.model_rebuild()
 
 
 def build_label_field_on_create_model(
-    model: type[
-        Document
-        | Embedded
-        | Entity
-        | ReifiedRelation
-        | ReifiedRelationDocument
-        | Conjunction
-        | SemanticSpace
-    ],
+    create_model: type[_CreateBase],
 ):
-    assert model.Create
 
-    if getattr(model._meta, "require_label", True):
-        model.Create.model_fields["label"] = FieldInfo(annotation=str)
+    if getattr(create_model._meta, "require_label", True):
+        create_model.model_fields["label"] = FieldInfo(annotation=str)
 
 
 def unpack_generic_fields(
@@ -183,8 +174,8 @@ def initialise_create_model(
         type=(Literal[model.__name__], model.__name__),  # type: ignore
     )  # pyright: ignore[reportAttributeAccessIssue]
 
-    build_id_field_on_create_model(model)
-    build_label_field_on_create_model(model)
+    build_id_field_on_create_model(model.Create)
+    build_label_field_on_create_model(model.Create)
 
     model.Create.model_rebuild(force=True)
 
@@ -218,7 +209,7 @@ def build_generic_create_model_from_type_option(
     initialise_create_model(generic_relation_type)
 
     # Add the non-TypeVar fields to the base model
-    add_fields_to_create_model(generic_relation_type)
+    add_fields_to_create_model(generic_relation_type.Create, [])
 
     # Rebuild
     generic_relation_type.Create.model_rebuild(force=True)
@@ -326,17 +317,55 @@ def build_generic_create_model_from_type_option(
     return bound_create_model
 
 
-def build_bound_field_create_model(
-    create_model: type[_CreateBase], field_bindings: list[FieldBinding]
-) -> type[_CreateBase]:
+def build_bound_field_create_model[
+    TModel: type[
+        _DocumentCreateBase
+        | _EmbeddedCreateBase
+        | _EntityCreateBase
+        | _ReifiedRelationCreateBase
+        | _ReifiedRelationDocumentCreateBase
+        | _ConjunctionCreateBase
+        | _SemanticSpaceCreateBase
+    ]
+](
+    create_model: TModel,
+    field_bindings: list[FieldBinding],
+) -> TModel:
 
-    bound_fields_create_model = pydantic_create_model(
-        f"{create_model.__name__}[bound=({','.join(str(fb) for fb in field_bindings)})]",
-        __base__=create_model,
+    assert issubclass(
+        create_model,
+        (
+            _DocumentCreateBase,
+            _EmbeddedCreateBase,
+            _EntityCreateBase,
+            _ReifiedRelationCreateBase,
+            _ReifiedRelationDocumentCreateBase,
+            _ConjunctionCreateBase,
+            _SemanticSpaceCreateBase,
+        ),
     )
 
-    print(bound_fields_create_model)
-    print(bound_fields_create_model.model_fields)
+    model = create_model._owner
+
+    bound_fields_create_model: TModel = cast(
+        TModel,
+        pydantic_create_model(
+            f"{create_model.__name__}[bound=({','.join(str(fb) for fb in field_bindings)})]",
+            __base__=create_model,
+            __validators__=get_model_validators(model),
+            __module__=model.__module__,
+            _owner=(ClassVar[model], model),
+            __config__=ConfigDict(alias_generator=to_camel),
+            type=(Literal[model.__name__], model.__name__),  # type: ignore
+        ),
+    )
+
+    build_id_field_on_create_model(bound_fields_create_model)
+    build_label_field_on_create_model(bound_fields_create_model)
+
+    add_fields_to_create_model(bound_fields_create_model, fields_to_bind=field_bindings)
+    bound_fields_create_model.model_rebuild(force=True)
+    return bound_fields_create_model
 
 
 def get_relation_annotation_types(
@@ -358,15 +387,17 @@ def get_relation_annotation_types(
 
         elif isinstance(type_option, RelationToDocument):
             if field_bindings:
-                create_model = build_bound_field_create_model(
+                print("has bound fields")
+                cm = build_bound_field_create_model(
                     type_option.annotated_type.Create, field_bindings
                 )
             else:
-                create_model = type_option.annotated_type.Create
+                cm = type_option.annotated_type.Create
+
             if type_option.edge_model:
-                types.append(create_model.apply_edge_model(type_option.edge_model))
+                types.append(cm.apply_edge_model(type_option.edge_model))
             else:
-                types.append(create_model)
+                types.append(cm)
 
         elif isinstance(
             type_option,
@@ -390,6 +421,7 @@ def get_relation_annotation_types(
         return field_definition.wrapper[  # type: ignore
             Annotated[Union[*types], Field(discriminator="type")]
         ]
+
     return Union[*types]  # ty:ignore[invalid-type-form]
 
 
@@ -402,23 +434,48 @@ def get_embedded_annotation_types(
     return Union[*types]  # type: ignore
 
 
+def field_has_inherited_field_bindings(
+    fbs: list[FieldBinding], field_name: str, model: type[_DeclaredClass]
+) -> bool:
+    for fb in fbs:
+        if (
+            field_name in fb.child_fields
+            and (not fb.allowed_type_names or model.__name__ in fb.allowed_type_names)
+            and model.__name__ not in fb.excluded_type_names
+        ):
+            return True
+
+    return False
+
+
 def add_fields_to_create_model(
     model: type[
-        Document
-        | Embedded
-        | Entity
-        | ReifiedRelation
-        | ReifiedRelationDocument
-        | Conjunction
-        | SemanticSpace
+        _DocumentCreateBase
+        | _EmbeddedCreateBase
+        | _EntityCreateBase
+        | _ReifiedRelationCreateBase
+        | _ReifiedRelationDocumentCreateBase
+        | _ConjunctionCreateBase
+        | _SemanticSpaceCreateBase
     ],
+    fields_to_bind: list,
 ) -> None:
+
+    print("Adding fields to", model, fields_to_bind)
     # Literal fields
     for field_name, field_definition in model._meta.fields.literal_fields.items():
+        has_inherited_bindings = field_has_inherited_field_bindings(
+            fields_to_bind, field_name, field_definition.field_on_model
+        )
+        if has_inherited_bindings:
+            annotation = field_definition.annotated_type | None
+        else:
+            annotation = field_definition.annotated_type
+
         if field_definition.db_field:
             continue
-        model.Create.model_fields[field_name] = FieldInfo(
-            annotation=field_definition.annotated_type,
+        model.model_fields[field_name] = FieldInfo(
+            annotation=annotation,
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
         )
@@ -430,32 +487,46 @@ def add_fields_to_create_model(
 
         annotation = get_embedded_annotation_types(field_definition)
 
+        has_inherited_bindings = field_has_inherited_field_bindings(
+            fields_to_bind, field_name, field_definition.field_on_model
+        )
+        if has_inherited_bindings:
+            annotation = annotation | None
+
         if annotation:
-            model.Create.model_fields[field_name] = FieldInfo(
+            model.model_fields[field_name] = FieldInfo(
                 annotation=annotation,  # type: ignore
                 validation_alias=to_camel(field_name),
                 discriminator="type",
             )
 
     # Relation fields
-    for field_name, field_definition in model._meta.fields.relation_fields.items():
+    for (
+        field_name,
+        field_definition,
+    ) in model._meta.fields.relation_fields.items():
         if field_definition.db_field:
             continue
 
-        optional = False
+        annotation = get_relation_annotation_types(
+            field_definition,
+            field_bindings=[
+                *field_definition.bind_to_child_field,
+                *fields_to_bind,
+            ],
+        )
+
         if (
             field_definition.field_required_to_fulfil
             and not field_definition.subclasses_parent_fields
+        ) or field_has_inherited_field_bindings(
+            fields_to_bind, field_name, field_definition.field_on_model
         ):
-            optional = True
-
-        annotation = get_relation_annotation_types(
-            field_definition, field_bindings=field_definition.bind_to_child_field
-        )
+            annotation = Union[annotation, None]  # type: ignore
 
         if annotation:
-            model.Create.model_fields[field_name] = FieldInfo(
-                annotation=(annotation | None) if optional else annotation,  # type: ignore
+            model.model_fields[field_name] = FieldInfo(
+                annotation=annotation,  # type: ignore
                 validation_alias=to_camel(field_name),
                 metadata=field_definition.validators,  # type: ignore
                 discriminator="type" if not field_definition.wrapper else None,
@@ -469,8 +540,8 @@ def add_fields_to_create_model(
         if field_definition.db_field:
             continue
 
-        model.Create.model_fields[field_name] = FieldInfo(
+        model.model_fields[field_name] = FieldInfo(
             annotation=field_definition.annotated_type,
         )
 
-    model.Create.model_rebuild(force=True)
+    model.model_rebuild(force=True)

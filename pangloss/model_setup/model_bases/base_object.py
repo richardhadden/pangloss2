@@ -47,11 +47,11 @@ class _DeclaredClass(_BaseObject):
         cls._depends_on_classes = set()
 
 
-class MetaGetter:
+class MetaGetter[T: type[_ActionClass]]:
     """Descriptor class for getting the _meta class from
     the _DeclaredClass of an _ActionClass"""
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance, owner: T):
         return owner._owner._meta
 
 
@@ -64,7 +64,7 @@ class GetItemViaAttrDict[T](dict):
 
 class _ActionClass(_BaseObject):
     _owner: ClassVar[type[_DeclaredClass]]
-    _meta: ClassVar = MetaGetter()
+    _meta: ClassVar = MetaGetter[type[Self]]()
     _via: ClassVar[GetItemViaAttrDict[Self]]
 
     @classmethod

@@ -357,7 +357,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         for model in uninitialised_models:
             try:
                 if can_have_create_model(model):
-                    add_fields_to_create_model(model)
+                    add_fields_to_create_model(model.Create, [])
                 model._initialised = True
                 if can_have_create_db_model(model):
                     add_fields_to_create_db_model(model)

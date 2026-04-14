@@ -52,6 +52,7 @@ def test_is_literal():
     assert is_literal(float)
     assert is_literal(date)
     assert is_literal(datetime)
+    assert is_literal(str | None)
 
     assert not is_literal(Statement)
     assert not is_literal(None)

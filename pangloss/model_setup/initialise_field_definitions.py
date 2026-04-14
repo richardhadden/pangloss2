@@ -811,6 +811,7 @@ def initialise_field_definitions(model: type[_DeclaredClass]):
                 ],
                 db_field=is_db_field,
             )
+            print(field_definition)
             model._meta.field_definitions.add_field(
                 name=field_name,
                 field_definition=field_definition,

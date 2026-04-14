@@ -1,7 +1,8 @@
+import typing
 from datetime import date, datetime
 from functools import cache
 from inspect import isclass
-from types import UnionType
+from types import NoneType, UnionType
 from typing import (
     Annotated,
     Any,
@@ -241,10 +242,13 @@ def get_direct_instantiations_of_trait(
 
 
 def is_literal(
-    annotation: type[Any] | None,
+    annotation: type[Any] | None | UnionType,
 ) -> TypeIs[type[str | int | float | date | datetime]]:
     """Checks whether an annotation is of a literal type"""
     LITERAL_TYPES = {str, int, float, date, datetime}
+    if annotation_is_optional(annotation):
+        annotation = [t for t in get_args(annotation) if t is not NoneType][0]
+
     return annotation in LITERAL_TYPES
 
 
@@ -574,3 +578,11 @@ def get_all_parent_classes(model):
         filtered_parent_classes.append(pc)
 
     return filtered_parent_classes
+
+
+def annotation_is_optional(ann: Any) -> TypeIs[UnionType]:
+
+    if get_origin(ann) is typing.Union:
+        return NoneType in get_args(ann)
+
+    return False

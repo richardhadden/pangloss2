@@ -136,8 +136,8 @@ class FieldSubclassing:
 class FieldBinding:
     bound_field: str
     child_fields: list[str]
-    allowed_types: list[_DeclaredClass] = dataclass_field(default_factory=list)
-    excluded_types: list[_DeclaredClass] = dataclass_field(default_factory=list)
+    allowed_type_names: list[str] = dataclass_field(default_factory=list)
+    excluded_type_names: list[str] = dataclass_field(default_factory=list)
     converter: Callable[[Any], Any] | None = None
 
 
