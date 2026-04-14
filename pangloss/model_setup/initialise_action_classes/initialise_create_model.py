@@ -197,7 +197,7 @@ def recursively_get_generic_naming(
 
 @cache
 def build_generic_create_model_from_type_option(
-    type_option: RelationToGeneric,
+    type_option: RelationToGeneric, field_bindings
 ):
     """Taking a type option, build a Model.Create for each type option with the type options
     bound to the appropriate fields"""
@@ -228,6 +228,11 @@ def build_generic_create_model_from_type_option(
         __config__=ConfigDict(alias_generator=to_camel),
         type=(Literal[generic_relation_type.__name__], generic_relation_type.__name__),  # ty:ignore[invalid-type-form]
     )
+
+    if field_bindings:
+        bound_create_model = build_bound_field_create_model(
+            bound_create_model, field_bindings
+        )
 
     # For some reason, we need to manually add all the fields from the Generic unbound type
     # (you would have thought inheriting as __base__ above would have done this, but no)
@@ -276,13 +281,19 @@ def build_generic_create_model_from_type_option(
                     # If relation to Document...
                     elif isinstance(to, RelationToDocument):
                         # Add edge to Document.Create and use
+                        create_type = to.annotated_type.Create
+                        if field_bindings:
+                            create_type = build_bound_field_create_model(
+                                create_type, field_bindings
+                            )
+
                         if to.edge_model:
                             annotations.append(
-                                to.annotated_type.Create.apply_edge_model(to.edge_model)
+                                create_type.apply_edge_model(to.edge_model)
                             )
                         else:
                             # Add or use Document.Create
-                            annotations.append(to.annotated_type.Create)
+                            annotations.append(create_type)
 
                     # Otherwise, if it is anything that can be generic,
                     # pass the type option back to the this function to get the
@@ -291,11 +302,13 @@ def build_generic_create_model_from_type_option(
                         if to.edge_model:
                             annotations.append(
                                 build_generic_create_model_from_type_option(
-                                    to
+                                    to, field_bindings
                                 ).apply_edge_model(to.edge_model)
                             )
                         annotations.append(
-                            build_generic_create_model_from_type_option(to)
+                            build_generic_create_model_from_type_option(
+                                to, field_bindings
+                            )
                         )
 
         if field_definition.wrapper:
@@ -403,7 +416,7 @@ def get_relation_annotation_types(
             (RelationToGeneric),
         ):
             bound_reified_create_type = build_generic_create_model_from_type_option(
-                type_option
+                type_option, frozenset(field_bindings)
             )
 
             if type_option.edge_model:
@@ -460,7 +473,6 @@ def add_fields_to_create_model(
     fields_to_bind: list,
 ) -> None:
 
-    print("Adding fields to", model, fields_to_bind)
     # Literal fields
     for field_name, field_definition in model._meta.fields.literal_fields.items():
         has_inherited_bindings = field_has_inherited_field_bindings(

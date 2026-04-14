@@ -140,6 +140,15 @@ class FieldBinding:
     excluded_type_names: list[str] = dataclass_field(default_factory=list)
     converter: Callable[[Any], Any] | None = None
 
+    def __hash__(self):
+        return hash(
+            self.bound_field
+            + str(self.child_fields)
+            + str(self.allowed_type_names)
+            + str(self.excluded_type_names)
+            + repr(self.converter)
+        )
+
 
 @dataclass(frozen=True, kw_only=True)
 class RelationFieldDefinition(FieldDefinition):

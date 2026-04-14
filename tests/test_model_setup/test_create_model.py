@@ -784,3 +784,46 @@ def test_create_model_with_field_binding():
         action_model.model_fields["action_when_optional"].annotation
         == datetime.date | None
     )
+
+
+def test_create_model_with_field_binding_through_intermediate():
+
+    class Action(Document):
+        action_when: datetime.date
+        action_when_optional: datetime.date | None
+
+    class Negative[T](SemanticSpace[T]):
+        pass
+
+    class Statement(Document):
+        when: datetime.date
+        action: Annotated[
+            Negative[Action],
+            RelationConfig(
+                bind_to_child_field=[
+                    FieldBinding(
+                        bound_field="when",
+                        child_fields=["action_when", "action_when_optional"],
+                        allowed_type_names=["Action"],
+                    )
+                ]
+            ),
+        ]
+
+    negative_model = Statement.Create.model_fields["action"].annotation
+    assert isclass(negative_model) and issubclass(negative_model, Negative.Create)
+
+    negative_contents_fields = negative_model.model_fields["contents"]
+    assert get_origin(negative_contents_fields.annotation) is list
+    annotated_action_model = get_args(negative_contents_fields.annotation)[0]
+
+    assert get_origin(annotated_action_model) is Annotated
+    action_model = get_args(annotated_action_model)[0]
+    assert action_model
+    assert isclass(action_model) and issubclass(action_model, Action.Create)
+
+    assert action_model.model_fields["action_when"].annotation == datetime.date | None
+    assert (
+        action_model.model_fields["action_when_optional"].annotation
+        == datetime.date | None
+    )
