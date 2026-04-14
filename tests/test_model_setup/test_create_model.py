@@ -786,6 +786,7 @@ def test_create_model_with_field_binding():
     )
 
 
+@no_type_check
 def test_create_model_with_field_binding_through_intermediate():
 
     class Action(Document):
@@ -822,3 +823,25 @@ def test_create_model_with_field_binding_through_intermediate():
     assert isclass(action_model) and issubclass(action_model, Action.Create)
 
     assert action_model.model_fields["action_when"].annotation == datetime.date | None
+
+    st = Statement.Create(
+        label="A Statement",
+        when=datetime.date.today(),
+        action={
+            "type": "Negative",
+            "contents": [
+                {
+                    "type": "Action",
+                    "label": "An action",
+                }
+            ],
+        },
+    )
+
+    assert st.action.contents[0].action_when == datetime.date.today()
+
+    # Check we can convert to DB model, which will be proof of pudding
+    st._to_db_model()
+
+    # TODO: test with some more complex models!
+    # TODO: test with transformation function...

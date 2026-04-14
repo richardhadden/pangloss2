@@ -286,6 +286,14 @@ class ModelFieldDict[K, V](dict[K, V]):
             if isinstance(field_definition, AnnotatedValueFieldDefinition)
         }
 
+    @property
+    def bind_to_child_field_bindings(self) -> dict[K, list[FieldBinding]]:
+        return {
+            field_name: field_definition.bind_to_child_field
+            for field_name, field_definition in self.relation_fields.items()
+            if field_definition.bind_to_child_field
+        }
+
 
 @dataclass
 class ModelFields:

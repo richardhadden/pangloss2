@@ -80,7 +80,7 @@ class Document(_DeclaredClass, WithMeta[DocumentMeta]):
     ReferenceView: ClassVar[type[DocumentReferenceViewBase]]
     ReferenceSetBase: ClassVar[type[DocumentReferenceSetBase]]
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs) -> _DocumentCreateBase:
         return cls.Create(*args, **kwargs)
 
     @classmethod

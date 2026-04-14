@@ -116,9 +116,47 @@ class _ReferenceSetBase(_ActionClass):
         return self
 
 
+def recursively_add_bound_field_values(
+    item: _CreateBase, child_bound_fields: list[str], value=None
+):
+    if isinstance(item, _CreateBase):
+        for child_bound_field in child_bound_fields:
+            if isinstance(item, list):
+                for ri in item:
+                    if hasattr(ri, child_bound_field):
+                        setattr(ri, child_bound_field, value)
+            else:
+                if hasattr(item, child_bound_field):
+                    setattr(item, child_bound_field, value)
+        for related_field_name in item._meta.fields.relation_fields.keys():
+            child_item = getattr(item, related_field_name)
+            if isinstance(child_item, list):
+                for ci in child_item:
+                    recursively_add_bound_field_values(ci, child_bound_fields, value)
+            else:
+                recursively_add_bound_field_values(
+                    child_item, child_bound_fields, value
+                )
+
+
 class _CreateBase(_ActionClass):
     def _to_db_model(self):
         return self._owner.CreateDB(**self.model_dump())  # type: ignore
+
+    @model_validator(mode="after")
+    def propagate_bound_values(self) -> Self:
+        for (
+            field_name,
+            bindings,
+        ) in self._meta.fields.bind_to_child_field_bindings.items():
+            for binding in bindings:
+                value = getattr(self, binding.bound_field)
+                related_item = getattr(self, field_name)
+                recursively_add_bound_field_values(
+                    related_item, binding.child_fields, value=value
+                )
+
+        return self
 
 
 class _CreateDBBase(_ActionClass):

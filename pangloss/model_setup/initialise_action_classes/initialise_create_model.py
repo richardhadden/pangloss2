@@ -490,6 +490,8 @@ def add_fields_to_create_model(
             validation_alias=to_camel(field_name),
             metadata=field_definition.validators,  # type: ignore
         )
+        if has_inherited_bindings:
+            model.model_fields[field_name].default = None
 
     # Embedded fields
     for field_name, field_definition in model._meta.fields.embedded_fields.items():
@@ -510,6 +512,8 @@ def add_fields_to_create_model(
                 validation_alias=to_camel(field_name),
                 discriminator="type",
             )
+        if has_inherited_bindings:
+            model.model_fields[field_name].default = None
 
     # Relation fields
     for (
@@ -527,12 +531,14 @@ def add_fields_to_create_model(
             ],
         )
 
+        field_optional = False
         if (
             field_definition.field_required_to_fulfil
             and not field_definition.subclasses_parent_fields
         ) or field_has_inherited_field_bindings(
             fields_to_bind, field_name, field_definition.field_on_model
         ):
+            field_optional = True
             annotation = Union[annotation, None]  # type: ignore
 
         if annotation:
@@ -542,6 +548,8 @@ def add_fields_to_create_model(
                 metadata=field_definition.validators,  # type: ignore
                 discriminator="type" if not field_definition.wrapper else None,
             )
+            if field_optional:
+                model.model_fields[field_name].default = None
 
     # Annotated values
     for (
@@ -552,13 +560,16 @@ def add_fields_to_create_model(
             continue
 
         annotation = field_definition.annotated_type
-        if field_has_inherited_field_bindings(
+        has_inherited_bindings = field_has_inherited_field_bindings(
             fields_to_bind, field_name, field_definition.field_on_model
-        ):
+        )
+        if has_inherited_bindings:
             annotation = annotation | None
 
         model.model_fields[field_name] = FieldInfo(
             annotation=annotation,
         )
+        if has_inherited_bindings:
+            model.model_fields[field_name].default = None
 
     model.model_rebuild(force=True)
