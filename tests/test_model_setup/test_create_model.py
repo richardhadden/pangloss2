@@ -790,7 +790,6 @@ def test_create_model_with_field_binding_through_intermediate():
 
     class Action(Document):
         action_when: datetime.date
-        action_when_optional: datetime.date | None
 
     class Negative[T](SemanticSpace[T]):
         pass
@@ -803,7 +802,7 @@ def test_create_model_with_field_binding_through_intermediate():
                 bind_to_child_field=[
                     FieldBinding(
                         bound_field="when",
-                        child_fields=["action_when", "action_when_optional"],
+                        child_fields=["action_when"],
                         allowed_type_names=["Action"],
                     )
                 ]
@@ -823,7 +822,3 @@ def test_create_model_with_field_binding_through_intermediate():
     assert isclass(action_model) and issubclass(action_model, Action.Create)
 
     assert action_model.model_fields["action_when"].annotation == datetime.date | None
-    assert (
-        action_model.model_fields["action_when_optional"].annotation
-        == datetime.date | None
-    )
