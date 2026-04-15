@@ -1,6 +1,6 @@
 # Pangloss
 
-A Python framework for defining and initializing rich domain models.
+A Python framework mapping stupidly complex Pydantic models from API endpoints to a graph database.
 
 ## Initialization Process
 
@@ -20,6 +20,10 @@ Many models refer to each other (e.g., a `Document` has a field typed as an `Ent
 - **`initialise_field_definitions`**: builds the field definitions for a model once it is complete.
 - **`try_initialise_all_models()`**: called on each new model registration; it attempts to rebuild and initialise any models that are ready.
 
-## Getting Started
+## Creation Process
 
-... (add more docs here as needed) ...
+Two models are generated for Document, Entity, etc.: `Create` and `CreateDB`.
+
+- `Create` is the model presented as the API endpoint
+- `CreateDB` is the model used to write to the database, potentially containing more fields 
+annotated as `DBField` and converted by the optional static method `<Model>.to_db_create` 
