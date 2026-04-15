@@ -121,5 +121,5 @@ Optionally include fields of a trait, that are fulfilled by being provided (thus
 ### DBField
 Use with Annotated, labels a field as database-only (not returned by API), createable from existing fields on write
 
-### APIField[...]
+### APIField
 Use with Annotated, labels a field as API-only (not in DB), createble from existing fields on read
