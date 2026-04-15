@@ -117,7 +117,7 @@ class _ReferenceSetBase(_ActionClass):
         return self
 
 
-def allow_bind(item: _CreateBase, binding: FieldBinding) -> bool:
+def allow_bind_on_this_item(item: _CreateBase, binding: FieldBinding) -> bool:
     return bool(
         (
             binding.allowed_type_names
@@ -138,28 +138,26 @@ def recursively_add_bound_field_values(
     bind values where rules are followed, and call itself to try on
     all nested items"""
     child_bound_fields = binding.child_fields
-    if isinstance(item, _CreateBase):
+    if isinstance(item, _CreateBase) and allow_bind_on_this_item(item, binding):
         for child_bound_field in child_bound_fields:
-            if allow_bind(item, binding):
-                if isinstance(item, list):
-                    for ri in item:
-                        if hasattr(ri, child_bound_field) and not getattr(
-                            ri, child_bound_field, None
-                        ):
-                            setattr(ri, child_bound_field, value)
-                else:
-                    if hasattr(item, child_bound_field) and not getattr(
-                        item, child_bound_field, None
+            if isinstance(item, list):
+                for ri in item:
+                    if hasattr(ri, child_bound_field) and not getattr(
+                        ri, child_bound_field, None
                     ):
-                        print(getattr(item, child_bound_field))
-                        setattr(item, child_bound_field, value)
-            for related_field_name in item._meta.fields.relation_fields.keys():
-                child_item = getattr(item, related_field_name)
-                if isinstance(child_item, list):
-                    for ci in child_item:
-                        recursively_add_bound_field_values(ci, binding, value)
-                else:
-                    recursively_add_bound_field_values(child_item, binding, value)
+                        setattr(ri, child_bound_field, value)
+            else:
+                if hasattr(item, child_bound_field) and not getattr(
+                    item, child_bound_field, None
+                ):
+                    setattr(item, child_bound_field, value)
+    for related_field_name in item._meta.fields.relation_fields.keys():
+        child_item = getattr(item, related_field_name)
+        if isinstance(child_item, list):
+            for ci in child_item:
+                recursively_add_bound_field_values(ci, binding, value)
+        else:
+            recursively_add_bound_field_values(child_item, binding, value)
 
 
 class _CreateBase(_ActionClass):
