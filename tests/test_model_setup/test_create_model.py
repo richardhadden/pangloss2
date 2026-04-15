@@ -840,6 +840,64 @@ def test_create_model_with_field_binding_through_intermediate():
 
     assert st.action.contents[0].action_when == datetime.date.today()
 
+
+@no_type_check
+def test_create_model_with_field_binding_through_intermediate_with_transform():
+
+    class Action(Document):
+        action_when: datetime.date
+
+    class Negative[T](SemanticSpace[T]):
+        pass
+
+    class Statement(Document):
+        when: datetime.date
+        action: Annotated[
+            Negative[Action],
+            RelationConfig(
+                bind_to_child_field=[
+                    FieldBinding(
+                        bound_field="when",
+                        child_fields=["action_when"],
+                        allowed_type_names=["Action"],
+                        converter=lambda x: x + datetime.timedelta(days=1),
+                    )
+                ]
+            ),
+        ]
+
+    negative_model = Statement.Create.model_fields["action"].annotation
+    assert isclass(negative_model) and issubclass(negative_model, Negative.Create)
+
+    negative_contents_fields = negative_model.model_fields["contents"]
+    assert get_origin(negative_contents_fields.annotation) is list
+    annotated_action_model = get_args(negative_contents_fields.annotation)[0]
+
+    assert get_origin(annotated_action_model) is Annotated
+    action_model = get_args(annotated_action_model)[0]
+    assert action_model
+    assert isclass(action_model) and issubclass(action_model, Action.Create)
+
+    assert action_model.model_fields["action_when"].annotation == datetime.date | None
+
+    st = Statement.Create(
+        label="A Statement",
+        when=datetime.date.today(),
+        action={
+            "type": "Negative",
+            "contents": [
+                {
+                    "type": "Action",
+                    "label": "An action",
+                }
+            ],
+        },
+    )
+
+    assert st.action.contents[
+        0
+    ].action_when == datetime.date.today() + datetime.timedelta(days=1)
+
     # Check we can convert to DB model, which will be proof of pudding
     st._to_db_model()
 

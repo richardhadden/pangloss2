@@ -151,6 +151,8 @@ class _CreateBase(_ActionClass):
         ) in self._meta.fields.bind_to_child_field_bindings.items():
             for binding in bindings:
                 value = getattr(self, binding.bound_field)
+                if binding.converter:
+                    value = binding.converter(value)
                 related_item = getattr(self, field_name)
                 recursively_add_bound_field_values(
                     related_item, binding.child_fields, value=value
