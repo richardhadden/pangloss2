@@ -134,6 +134,9 @@ def allow_bind(item: _CreateBase, binding: FieldBinding) -> bool:
 def recursively_add_bound_field_values(
     item: _CreateBase, binding: FieldBinding, value=None
 ):
+    """Given an item, a FieldBinding instance and a value, try to
+    bind values where rules are followed, and call itself to try on
+    all nested items"""
     child_bound_fields = binding.child_fields
     if isinstance(item, _CreateBase):
         for child_bound_field in child_bound_fields:
@@ -165,6 +168,8 @@ class _CreateBase(_ActionClass):
 
     @model_validator(mode="after")
     def propagate_bound_values(self) -> Self:
+        """Get any binding-fields for this model and try to bind
+        on nested objects"""
         for (
             field_name,
             bindings,
