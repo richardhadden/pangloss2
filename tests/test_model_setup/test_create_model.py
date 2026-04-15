@@ -901,5 +901,157 @@ def test_create_model_with_field_binding_through_intermediate_with_transform():
     # Check we can convert to DB model, which will be proof of pudding
     st._to_db_model()
 
-    # TODO: test with some more complex models!
-    # TODO: test with transformation function...
+
+@no_type_check
+def test_create_model_with_field_binding_through_intermediate_ignoring_type():
+
+    class Action(Document):
+        action_when: datetime.date
+        subaction: SubAction
+
+    class SubAction(Document):
+        action_when: datetime.date
+
+    class Negative[T](SemanticSpace[T]):
+        pass
+
+    class Statement(Document):
+        when: datetime.date
+        action: Annotated[
+            Negative[Action],
+            RelationConfig(
+                bind_to_child_field=[
+                    FieldBinding(
+                        bound_field="when",
+                        child_fields=["action_when"],
+                        allowed_type_names=["SubAction"],
+                        converter=lambda x: x + datetime.timedelta(days=1),
+                    ),
+                ]
+            ),
+        ]
+
+    negative_model = Statement.Create.model_fields["action"].annotation
+    assert isclass(negative_model) and issubclass(negative_model, Negative.Create)
+
+    negative_contents_fields = negative_model.model_fields["contents"]
+    assert get_origin(negative_contents_fields.annotation) is list
+    annotated_action_model = get_args(negative_contents_fields.annotation)[0]
+
+    assert get_origin(annotated_action_model) is Annotated
+    action_model = get_args(annotated_action_model)[0]
+    assert action_model
+    assert isclass(action_model) and issubclass(action_model, Action.Create)
+
+    assert action_model.model_fields["action_when"].annotation == datetime.date
+
+    # Test that not providing Action.action_when raises error as binding only
+    # applied to SubAction
+    with pytest.raises(ValidationError):
+        Statement.Create(
+            label="A Statement",
+            when=datetime.date.today(),
+            action={
+                "type": "Negative",
+                "contents": [
+                    {
+                        "type": "Action",
+                        "label": "An action",
+                    }
+                ],
+            },
+        )
+
+    st = Statement.Create(
+        label="A Statement",
+        when=datetime.date.today(),
+        action={
+            "type": "Negative",
+            "contents": [
+                {
+                    "type": "Action",
+                    "label": "An action",
+                    "action_when": datetime.date.today(),
+                    "subaction": {
+                        "type": "SubAction",
+                        "label": "A SubAction",
+                    },
+                }
+            ],
+        },
+    )
+
+    assert st.action.contents[0].action_when == datetime.date.today()
+
+    assert st.action.contents[
+        0
+    ].subaction.action_when == datetime.date.today() + datetime.timedelta(days=1)
+
+
+@no_type_check
+def test_create_model_with_field_binding_through_intermediate_ignoring_type_does_not_override_given_value():
+
+    class Action(Document):
+        action_when: datetime.date
+        subaction: SubAction
+
+    class SubAction(Document):
+        action_when: datetime.date
+
+    class Negative[T](SemanticSpace[T]):
+        pass
+
+    class Statement(Document):
+        when: datetime.date
+        action: Annotated[
+            Negative[Action],
+            RelationConfig(
+                bind_to_child_field=[
+                    FieldBinding(
+                        bound_field="when",
+                        child_fields=["action_when"],
+                        allowed_type_names=["Action", "SubAction"],
+                        converter=lambda x: x + datetime.timedelta(days=1),
+                    ),
+                ]
+            ),
+        ]
+
+    negative_model = Statement.Create.model_fields["action"].annotation
+    assert isclass(negative_model) and issubclass(negative_model, Negative.Create)
+
+    negative_contents_fields = negative_model.model_fields["contents"]
+    assert get_origin(negative_contents_fields.annotation) is list
+    annotated_action_model = get_args(negative_contents_fields.annotation)[0]
+
+    assert get_origin(annotated_action_model) is Annotated
+    action_model = get_args(annotated_action_model)[0]
+    assert action_model
+    assert isclass(action_model) and issubclass(action_model, Action.Create)
+
+    assert action_model.model_fields["action_when"].annotation == datetime.date | None
+
+    st = Statement.Create(
+        label="A Statement",
+        when=datetime.date.today(),
+        action={
+            "type": "Negative",
+            "contents": [
+                {
+                    "type": "Action",
+                    "label": "An action",
+                    "action_when": datetime.date.today(),
+                    "subaction": {
+                        "type": "SubAction",
+                        "label": "A SubAction",
+                    },
+                }
+            ],
+        },
+    )
+
+    assert st.action.contents[0].action_when == datetime.date.today()
+
+    assert st.action.contents[
+        0
+    ].subaction.action_when == datetime.date.today() + datetime.timedelta(days=1)
