@@ -13,27 +13,13 @@ Inbound types:
 - Update
 
 Outbound types:
-- UpdateView
-    - ID, Label, created/modified,
-- View
-    - ID, Label, created/modified
+- View -- plain view model for embedded docs, inc. for editing
+    - ID, Label
+- HeadView
+    - ID, Label, _meta, "context" (if nested?)
 - ReferenceView
-    - ID, Label, containing doc ref/type??
+    - ID, Label, containing doc ref/type, in_semantic_spaces, 
 
-### `SubDocument`
-Describes a part of a viewable document (maps to node)
-
-Inbound types:
-- Create
-- Update
-
-Outbound types:
-- UpdateView
-    - ID, Label, created/modified,
-- View
-    - ID, Label, created/modified, incoming relations
-- ReferenceView
-    - ID, Label, containing doc ref/type
 
 ### `Entity`
 Describes an Entity, referenceable by a document (maps to node)
@@ -42,13 +28,13 @@ Inbound types:
 - Create
 - Update
 - ReferenceSet
-- ReferenceCreate
+- ~~ReferenceCreate~~ Just use Create
 
 Outbound types:
 - UpdateView
-    - ID, Label, created/modified,
-- View
-    - ID, Label, created/modified, incoming relations
+    - ID, Label, _meta
+- Head View
+    - ID, Label, _meta, incoming relations
 - ReferenceView
     - ID, Label, containing doc ref/type
 
@@ -129,11 +115,11 @@ Adds an edge of type EdgeModel to a relation
 ### `Traits`
 Mixin classes adding extra fields and labels
 
-### `Fulfils[T: Trait]`
+### `Fulfils[T, T, ...]`
 Optionally include fields of a trait, that are fulfilled by being provided (thus adding label)
 
-### DBField[...]
-Labels a field as database-only (not returned by API), createable from existing fields on write
+### DBField
+Use with Annotated, labels a field as database-only (not returned by API), createable from existing fields on write
 
 ### APIField[...]
-Labels a field as API-only (not in DB), createble from existing fields on read
+Use with Annotated, labels a field as API-only (not in DB), createble from existing fields on read
