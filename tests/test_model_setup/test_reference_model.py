@@ -19,6 +19,14 @@ def test_reference_set_on_entities():
 
 
 @no_type_check
+def test_reference_set_on_entries_can_take_uri():
+    class Person(Entity):
+        _meta = Entity.Meta(accept_url_as_id=True)
+
+    p = Person.ReferenceSet(id="http://anything.com/dude")
+
+
+@no_type_check
 def test_reference_set_with_edge_property():
     class Person(Entity):
         pass

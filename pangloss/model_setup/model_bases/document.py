@@ -1,6 +1,7 @@
-from typing import Annotated, ClassVar
+from typing import Annotated, Any, ClassVar
+from uuid import UUID, uuid7
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
 from pangloss.model_setup.field_definitions import (
@@ -45,7 +46,16 @@ class _DocumentCreateBase(_CreateBase):
 
 
 class _DocumentCreateDBBase(_CreateDBBase):
-    pass
+    id: UUID
+    semantic_spaces: list[str] = Field(default_factory=list)
+    db_labels: set[str] = Field(default_factory=set)
+
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_id(cls, data: Any) -> Any:
+        if not data.get("id", None):
+            data["id"] = uuid7()
+        return data
 
 
 class DocumentViewBase(_ViewBase):

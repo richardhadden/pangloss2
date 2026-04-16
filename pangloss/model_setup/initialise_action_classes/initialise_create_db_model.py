@@ -18,7 +18,7 @@ from pangloss.model_setup.field_definitions import (
     RelationToGeneric,
     RelationToTypeVar,
 )
-from pangloss.model_setup.model_bases.base_object import _CreateBase, _DeclaredClass
+from pangloss.model_setup.model_bases.base_object import _CreateDBBase, _DeclaredClass
 from pangloss.model_setup.model_bases.conjunction import (
     Conjunction,
     _ConjunctionCreateDBBase,
@@ -131,7 +131,7 @@ def get_create_db_base_model_type(
         | Conjunction
         | SemanticSpace
     ],
-) -> type[_CreateBase] | None:
+) -> type[_CreateDBBase] | None:
     if issubclass(model, Document):
         return _DocumentCreateDBBase
     elif issubclass(model, Entity):

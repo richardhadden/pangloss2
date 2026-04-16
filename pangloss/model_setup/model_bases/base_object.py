@@ -161,7 +161,7 @@ def recursively_add_bound_field_values(
 
 
 class _CreateBase(_ActionClass):
-    def _to_db_model(self):
+    def _to_db_model(self) -> _CreateDBBase:
         return self._owner.CreateDB(**self.model_dump())  # type: ignore
 
     @model_validator(mode="after")
