@@ -66,7 +66,7 @@ def test_create_model_for_document_with_no_id():
 
     assert Statement.CreateDB._owner is Statement
 
-    assert "id" not in Statement.CreateDB.model_fields
+    assert "id" in Statement.CreateDB.model_fields
 
     st = Statement.CreateDB(label="A Statement")
     assert st.label == "A Statement"
@@ -119,7 +119,7 @@ def test_create_model_for_entity():
 
     assert Person.CreateDB
 
-    assert "id" not in Person.CreateDB.model_fields
+    assert "id" in Person.CreateDB.model_fields
     assert "label" in Person.CreateDB.model_fields
 
 
@@ -152,9 +152,7 @@ def test_create_model_for_entity_with_id():
     with pytest.raises(ValidationError):
         Person.CreateDB(id="http://mything.net/person", label="Toby Jones")
 
-    # With create_new=True set, an ID must also be provided
-    with pytest.raises(ValidationError):
-        Person.CreateDB(label="Toby Jones", create_new=True)
+    Person.CreateDB(label="Toby Jones", create_new=True)
 
 
 @no_type_check
@@ -853,3 +851,72 @@ def test_can_convert_create_to_create_db_model_with_declared_conversion():
 
     assert isinstance(st_db.something_else, SomethingElse.CreateDB)
     assert st_db.something_else.name == "something else name"
+
+
+@no_type_check
+def test_document_create_db_has_id_field():
+    class Statement(Document):
+        pass
+
+    st1 = Statement.Create(label="A Statement")
+
+    st1_db = st1._to_db_model()
+
+    assert st1_db.id
+
+
+@no_type_check
+def test_entity_create_db_has_id_field():
+    class Person(Entity):
+        pass
+
+    p = Person.Create(label="John Smith")
+
+    p_db = p._to_db_model()
+    assert isinstance(p_db.id, UUID)
+
+
+@no_type_check
+def test_entity_create_db_retains_provided_id():
+    class Person(Entity):
+        _meta = Entity.Meta(create_with_id=True)
+
+    given_uuid = uuid7()
+    p = Person.Create(id=given_uuid, label="Toby Jones", create_new=True)
+    assert p.id
+
+    p_db = p._to_db_model()
+    assert p_db.id == given_uuid
+
+
+@no_type_check
+def test_entity_create_db_has_new_id_but_keeps_url_when_provided():
+    class Person(Entity):
+        _meta = Entity.Meta(create_with_id=True, accept_url_as_id=True)
+
+    p = Person.Create(
+        id="http://something.net/Toby_Jones", label="Toby Jones", create_new=True
+    )
+
+    p_db = p._to_db_model()
+    assert isinstance(p_db.id, UUID)
+    assert p_db.urls == set([AnyHttpUrl("http://something.net/Toby_Jones")])
+
+
+@no_type_check
+def test_document_create_db_in_semantic_spaces_propagated():
+
+    class Negative[T](SemanticSpace[T]):
+        pass
+
+    class Factoid(Document):
+        statements: list[Negative[Order]]
+
+    class Order(Document):
+        thing_ordered: Subjunctive[Action]
+
+    class Subjunctive[T](SemanticSpace[T]):
+        pass
+
+    class Action(Document):
+        pass

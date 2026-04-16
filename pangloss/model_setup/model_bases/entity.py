@@ -1,6 +1,7 @@
-from typing import Annotated, ClassVar, Self
+from typing import Annotated, Any, ClassVar, Self
+from uuid import UUID, uuid7
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AnyHttpUrl, ConfigDict, Field, model_validator
 from pydantic_meta_kit import BaseMeta, InheritValue, MetaRules, WithMeta
 
 from pangloss.exceptions import PanglossMetaError
@@ -53,7 +54,25 @@ class _EntityCreateBase(_CreateBase):
 
 
 class _EntityCreateDBBase(_CreateDBBase):
-    pass
+    id: UUID
+    urls: set[AnyHttpUrl] = Field(default_factory=set)
+
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_id(cls, data: Any) -> Any:
+        """If provided with a URL as id, pass the url to the urls field and replace with UUID;
+        otherwise, generate a UUID"""
+
+        if (id_value := data.get("id", None)) and isinstance(id_value, AnyHttpUrl):
+            data["id"] = uuid7()
+            if not data.get("urls", None):
+                data["urls"] = set([id_value])
+            else:
+                data["urls"].add(id_value)
+
+        if not data.get("id", None):
+            data["id"] = uuid7()
+        return data
 
 
 class _EntityReferenceSetBase(_ReferenceSetBase):
