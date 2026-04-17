@@ -719,7 +719,9 @@ def test_inherited_from_fulfils_is_optional():
             Person,
             RelationConfig(
                 subclasses_parent_fields=[
-                    FieldSubclassing("located_person", field_on_model=PersonInPlace)
+                    FieldSubclassing(
+                        field_name="located_person", field_on_model=PersonInPlace
+                    )
                 ]
             ),
         ]
@@ -912,11 +914,13 @@ def test_document_create_db_in_semantic_spaces_propagated():
     class Factoid(Document):
         statements: list[Negative[Order]]
 
+    class Action(Document):
+        pass
+
     class Order(Document):
         thing_ordered: Subjunctive[Action]
 
     class Subjunctive[T](SemanticSpace[T]):
         pass
 
-    class Action(Document):
-        pass
+    assert Factoid.Create

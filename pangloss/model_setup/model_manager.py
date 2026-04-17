@@ -7,12 +7,13 @@ registered.
 
 from collections import ChainMap
 from inspect import isclass
-from typing import TYPE_CHECKING, Any, no_type_check
+from typing import TYPE_CHECKING, Any, ForwardRef, get_args, get_origin, no_type_check
 
-from pydantic import PydanticUndefinedAnnotation
+from pydantic import BaseModel, PydanticUndefinedAnnotation
 
 from pangloss.exceptions import (
     PanglossInitialisationError,
+    PanglossModelError,
 )
 from pangloss.model_setup.initialise_action_classes.initialise_create_db_model import (
     add_fields_to_create_db_model,
@@ -161,15 +162,15 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         """Return a mapping of every registered model type by class name."""
 
         return ChainMap(
+            cls._embedded,
+            cls._reified_relations,
+            cls._reified_relation_documents,
+            cls._conjunctions,
+            cls._semantic_spaces,
             cls._documents,
             cls._entities,
             cls._heritable_traits,
             cls._non_heritable_traits,
-            cls._embedded,
-            cls._reified_relations,
-            cls._reified_relation_documents,
-            cls._semantic_spaces,
-            cls._conjunctions,
             cls._relations,
             cls._edge_models,
             cls._annotated_values,
@@ -292,6 +293,11 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         Models that are still missing dependencies are left untouched and will be
         revisited when additional types are registered.
         """
+        try:
+            if not declared_class.__pydantic_complete__:
+                declared_class.model_rebuild(_types_namespace=cls.all_models())
+        except:
+            pass
 
         # Go through all models and try to rebuild, which will succeed is all
         # dependencies have also been declared; otherwise, wait for more models
@@ -299,40 +305,47 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
         for model in cls.all_models().values():
             if not model.__pydantic_complete__:
                 try:
-                    model.model_rebuild(_types_namespace=cls.all_models())
+                    model.model_rebuild(force=True, _types_namespace=cls.all_models())
                 except PydanticUndefinedAnnotation:
                     pass
                 except RecursionError:
                     pass
 
         # Check all models so far have no undeclared dependencies; otherwise, return
-        if not all(model.__pydantic_complete__ for model in cls.all_models().values()):
+        if not all(
+            model.__pydantic_fields_complete__ for model in cls.all_models().values()
+        ):
             return
 
-        ModelManager.initialise_models([declared_class])
+        try:
+            ModelManager.initialise_models([declared_class])
 
-        # Get models that have not been initialised
-        uninitialised_models = [
-            model
-            for model in cls.all_models().values()
-            if hasattr(model, "_initialised")
-            and not getattr(model, "_initialised", False)
-        ]
+            # Get models that have not been initialised
+            uninitialised_models = [
+                model
+                for model in cls.all_models().values()
+                if hasattr(model, "_initialised")
+                and not getattr(model, "_initialised", False)
+            ]
 
-        ModelManager.initialise_models(uninitialised_models)
+            ModelManager.initialise_models(uninitialised_models)
 
-        # If the current declared_class is a subclass of something else
-        # that is a dependency of a class already declared, we need to rebuild
-        # the model fields for that class so that the subclass is taken into account
-        for model in cls.all_models().values():
-            for kls in model._depends_on_classes:
-                if isclass(kls) and issubclass(declared_class, kls):
-                    try:
-                        ModelManager.initialise_models([model])
-                        model._initialised = True
-                    except AttributeError:
-                        pass
-                    break
+            # If the current declared_class is a subclass of something else
+            # that is a dependency of a class already declared, we need to rebuild
+            # the model fields for that class so that the subclass is taken into account
+            for model in cls.all_models().values():
+                for kls in model._depends_on_classes:
+                    if isclass(kls) and issubclass(declared_class, kls):
+                        try:
+                            ModelManager.initialise_models([model])
+                            model._initialised = True
+                        except AttributeError:
+                            pass
+                        break
+        except PanglossModelError as e:
+            raise e
+        except Exception:
+            pass
 
     @staticmethod
     def initialise_models(uninitialised_models):
@@ -344,8 +357,9 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                     initialise_create_model(model)
                 if can_have_create_db_model(model):
                     initialise_create_db_model(model)
-            except AttributeError:
+            except AttributeError as e:
                 print(model.__name__, "error init create model")
+                raise e
 
         for model in uninitialised_models:
             try:
@@ -353,6 +367,7 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 initialise_reference_view_model(model)
             except AttributeError as e:
                 print(model.__name__, "error initialising reference field", e)
+                raise e
 
         for model in uninitialised_models:
             try:
@@ -364,3 +379,47 @@ class ModelManager(metaclass=ClassPropertyMetaClass):
                 model.model_rebuild(force=True)
             except (AttributeError, TypeError) as e:
                 print(model.__name__, "error add field to model create", e)
+                raise e
+
+
+def _contains_unresolved(tp) -> bool:
+    """Detect ForwardRef or string annotations (Python 3.14-safe)."""
+    if isinstance(tp, (ForwardRef, str)):
+        return True
+
+    origin = get_origin(tp)
+    if origin:
+        return any(_contains_unresolved(arg) for arg in get_args(tp))
+
+    return False
+
+
+def _extract_ref_names(tp) -> set[str]:
+    """Extract referenced type names from annotation."""
+    names = set()
+
+    if isinstance(tp, ForwardRef):
+        names.add(tp.__forward_arg__)
+        return names
+
+    if isinstance(tp, str):
+        names.add(tp)
+        return names
+
+    origin = get_origin(tp)
+    if origin:
+        for arg in get_args(tp):
+            names |= _extract_ref_names(arg)
+    return names
+
+
+def _model_dependencies(model: type[BaseModel]) -> set[str]:
+    deps = set()
+
+    for field in model.model_fields.values():
+        ann = field.annotation
+
+        if _contains_unresolved(ann):
+            deps |= _extract_ref_names(ann)
+
+    return deps

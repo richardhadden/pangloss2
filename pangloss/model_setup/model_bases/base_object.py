@@ -42,10 +42,16 @@ class DeclaredClassMeta(ABC):
 class _DeclaredClass(_BaseObject):
     _meta: ClassVar[DeclaredClassMeta]
     _depends_on_classes: ClassVar[set[type[_DeclaredClass]]] = PrivateAttr()
+    _is_pydantic_complete: ClassVar[bool] = False
 
     @classmethod
     def __pydantic_init_subclass__(cls, **_):
         cls._depends_on_classes = set()
+
+    @classmethod
+    def __pydantic_on_complete__(cls) -> None:
+        print(cls.__name__, "complete")
+        return super().__pydantic_on_complete__()
 
 
 class MetaGetter[T: type[_ActionClass]]:
